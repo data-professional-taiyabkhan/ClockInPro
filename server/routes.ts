@@ -135,14 +135,28 @@ function calculateBasicSimilarity(stored: string, captured: string): number {
   if (maxLength === 0) return 0;
   
   let matches = 0;
+  let partialMatches = 0;
+  
+  // Check for exact matches and similar characters
   for (let i = 0; i < minLength; i++) {
     if (stored[i] === captured[i]) {
       matches++;
+    } else {
+      // Check for similar characters (for base64 encoding variations)
+      const storedChar = stored.charCodeAt(i);
+      const capturedChar = captured.charCodeAt(i);
+      if (Math.abs(storedChar - capturedChar) <= 2) {
+        partialMatches++;
+      }
     }
   }
   
-  const baseSimilarity = matches / maxLength;
-  const lengthPenalty = (maxLength - minLength) / maxLength;
+  // Give full weight to exact matches, half weight to partial matches
+  const effectiveMatches = matches + (partialMatches * 0.5);
+  const baseSimilarity = effectiveMatches / maxLength;
+  
+  // Reduce length penalty for basic similarity
+  const lengthPenalty = (maxLength - minLength) / maxLength * 0.5;
   
   return Math.max(0, baseSimilarity - lengthPenalty);
 }
@@ -158,20 +172,20 @@ export function registerRoutes(app: Express): Server {
       const capturedFeatures = extractFaceCharacteristics(capturedFaceData);
       
       // Determine threshold based on descriptor type
-      let threshold = 0.7; // Default threshold
+      let threshold = 0.5; // More reasonable default threshold
       let descriptorType = 'basic';
       
       if (Array.isArray(storedFeatures) && Array.isArray(capturedFeatures)) {
         // Face-api.js descriptors are most accurate
-        threshold = 0.75;
+        threshold = 0.6;
         descriptorType = 'face-api';
       } else if (storedFeatures.eyeRegion && capturedFeatures.eyeRegion) {
         // Enhanced features are moderately accurate
-        threshold = 0.72;
+        threshold = 0.55;
         descriptorType = 'enhanced';
       } else if (storedFeatures.legacy && capturedFeatures.legacy) {
-        // Basic similarity needs lower threshold
-        threshold = 0.65;
+        // Basic similarity needs much lower threshold
+        threshold = 0.4;
         descriptorType = 'legacy';
       }
       
@@ -191,10 +205,10 @@ export function registerRoutes(app: Express): Server {
       console.log(`- Valid capture: ${isValidCapture}`);
       console.log(`- Match result: ${isMatch}`);
       
-      return isMatch;
+      return { isMatch, similarity, threshold, descriptorType };
     } catch (error) {
       console.error('Face matching error:', error);
-      return false;
+      return { isMatch: false, similarity: 0, threshold: 0.5, descriptorType: 'error' };
     }
   }
 
@@ -312,26 +326,25 @@ export function registerRoutes(app: Express): Server {
       }
 
       // Use enhanced face matching that validates user-specific characteristics
-      const isValidMatch = matchUserFace(user.faceData, faceData, user.id);
+      const matchResult = matchUserFace(user.faceData, faceData, user.id);
       
-      if (isValidMatch) {
+      if (typeof matchResult === 'object' && matchResult.isMatch) {
         res.json({ verified: true, message: "Face verification successful" });
       } else {
         // More specific error messages based on similarity scores
-        const similarity = calculateFaceSimilarity(user.faceData, faceData);
-        const storedFeatures = extractFaceCharacteristics(user.faceData);
+        const { similarity, threshold } = typeof matchResult === 'object' ? matchResult : { similarity: 0, threshold: 0.5 };
         const capturedFeatures = extractFaceCharacteristics(faceData);
         
         let errorMessage = "Face verification failed - face does not match registered user";
         
-        if (similarity < 0.3) {
+        if (similarity < 0.2) {
           errorMessage = "Face verification failed - captured face appears to be a different person";
-        } else if (similarity < 0.5) {
+        } else if (similarity < 0.35) {
           errorMessage = "Face verification failed - face similarity too low, please improve lighting and positioning";
         } else if (capturedFeatures.timestamp && (Date.now() - capturedFeatures.timestamp) > 300000) {
           errorMessage = "Face verification failed - capture too old, please try again";
         } else {
-          errorMessage = "Face verification failed - face does not match registered profile with sufficient confidence";
+          errorMessage = `Face verification failed - similarity ${(similarity * 100).toFixed(0)}% is below required ${(threshold * 100).toFixed(0)}% threshold. Please ensure good lighting and clear face visibility.`;
         }
         
         res.status(400).json({ verified: false, message: errorMessage });
