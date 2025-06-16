@@ -23,15 +23,13 @@ export function CameraFaceCapture({
   const [isDetected, setIsDetected] = useState(false);
   const [isCapturing, setIsCapturing] = useState(false);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
-  const [modelsLoaded, setModelsLoaded] = useState(false);
-  const [faceCount, setFaceCount] = useState(0);
+  const [detectionStatus, setDetectionStatus] = useState('Initializing...');
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const detectionIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
-    loadFaceApiModels();
     startCamera();
     return () => {
       if (stream) {
@@ -44,30 +42,13 @@ export function CameraFaceCapture({
   }, []);
 
   useEffect(() => {
-    if (stream && videoRef.current && modelsLoaded) {
+    if (stream && videoRef.current) {
       videoRef.current.srcObject = stream;
       videoRef.current.onloadedmetadata = () => {
         startFaceDetection();
       };
     }
-  }, [stream, modelsLoaded]);
-
-  const loadFaceApiModels = async () => {
-    try {
-      const MODEL_URL = '/models';
-      await Promise.all([
-        faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
-        faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
-        faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
-        faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL)
-      ]);
-      setModelsLoaded(true);
-    } catch (error) {
-      console.error('Error loading face-api models:', error);
-      // Fallback to simple detection without models
-      setModelsLoaded(true);
-    }
-  };
+  }, [stream]);
 
   const startCamera = async () => {
     try {
@@ -79,6 +60,7 @@ export function CameraFaceCapture({
         }
       });
       setStream(mediaStream);
+      setDetectionStatus('Camera started');
     } catch (error) {
       console.error('Error accessing camera:', error);
       toast({
@@ -94,26 +76,84 @@ export function CameraFaceCapture({
       clearInterval(detectionIntervalRef.current);
     }
 
-    detectionIntervalRef.current = setInterval(async () => {
-      if (videoRef.current && modelsLoaded) {
-        try {
-          const detections = await faceapi
-            .detectAllFaces(videoRef.current, new faceapi.TinyFaceDetectorOptions())
-            .withFaceLandmarks()
-            .withFaceDescriptors();
+    setDetectionStatus('Analyzing video feed...');
 
-          const faceCount = detections.length;
-          setFaceCount(faceCount);
-          setIsDetected(faceCount > 0);
-        } catch (error) {
-          // Fallback: use simple detection based on video readiness
-          if (videoRef.current && videoRef.current.readyState === 4) {
-            setIsDetected(true);
-            setFaceCount(1);
+    detectionIntervalRef.current = setInterval(() => {
+      if (videoRef.current && canvasRef.current) {
+        try {
+          const video = videoRef.current;
+          const canvas = canvasRef.current;
+          const context = canvas.getContext('2d');
+
+          if (context && video.readyState === 4) {
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            context.drawImage(video, 0, 0);
+
+            // Analyze the image data for face-like features
+            const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+            const hasFace = analyzeImageForFace(imageData);
+
+            if (hasFace) {
+              setIsDetected(true);
+              setDetectionStatus('Face detected!');
+            } else {
+              setIsDetected(false);
+              setDetectionStatus('No face detected - position your face in the frame');
+            }
           }
+        } catch (error) {
+          setDetectionStatus('Detection error - please try again');
         }
       }
-    }, 300); // Check every 300ms
+    }, 500); // Check every 500ms
+  };
+
+  const analyzeImageForFace = (imageData: ImageData): boolean => {
+    const data = imageData.data;
+    const width = imageData.width;
+    const height = imageData.height;
+    
+    // Simple face detection based on skin tone and brightness patterns
+    let skinPixels = 0;
+    let totalPixels = 0;
+    let brightnessVariation = 0;
+    let avgBrightness = 0;
+
+    // Sample pixels in the center area where face would typically be
+    const centerX = Math.floor(width / 2);
+    const centerY = Math.floor(height / 2);
+    const sampleRadius = Math.min(width, height) / 4;
+
+    for (let y = centerY - sampleRadius; y < centerY + sampleRadius; y += 4) {
+      for (let x = centerX - sampleRadius; x < centerX + sampleRadius; x += 4) {
+        if (x >= 0 && x < width && y >= 0 && y < height) {
+          const index = (y * width + x) * 4;
+          const r = data[index];
+          const g = data[index + 1];
+          const b = data[index + 2];
+          
+          // Check for skin-like colors
+          const isSkinTone = (r > 95 && g > 40 && b > 20) &&
+                            (Math.max(r, g, b) - Math.min(r, g, b) > 15) &&
+                            (Math.abs(r - g) > 15) && (r > g) && (r > b);
+          
+          if (isSkinTone) skinPixels++;
+          
+          const brightness = (r + g + b) / 3;
+          avgBrightness += brightness;
+          totalPixels++;
+        }
+      }
+    }
+
+    if (totalPixels === 0) return false;
+
+    avgBrightness /= totalPixels;
+    const skinRatio = skinPixels / totalPixels;
+    
+    // Face detected if there's enough skin tone and reasonable brightness
+    return skinRatio > 0.1 && avgBrightness > 50 && avgBrightness < 220;
   };
 
   const capturePhoto = () => {
@@ -240,11 +280,13 @@ export function CameraFaceCapture({
                   ))}
                   
                   {/* Status indicator */}
-                  {isDetected && (
-                    <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-green-600 text-white px-4 py-2 rounded-full text-sm font-medium">
-                      Face Detected
-                    </div>
-                  )}
+                  <div className={`absolute bottom-4 left-1/2 transform -translate-x-1/2 px-4 py-2 rounded-full text-sm font-medium ${
+                    isDetected 
+                      ? "bg-green-600 text-white" 
+                      : "bg-yellow-600 text-white"
+                  }`}>
+                    {detectionStatus}
+                  </div>
                 </>
               ) : (
                 <div className="w-full h-full flex items-center justify-center">
