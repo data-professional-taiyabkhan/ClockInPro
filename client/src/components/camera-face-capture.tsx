@@ -76,18 +76,20 @@ export function CameraFaceCapture({
     try {
       const mediaStream = await navigator.mediaDevices.getUserMedia({
         video: {
-          width: { ideal: 640 },
-          height: { ideal: 480 },
-          facingMode: 'user'
-        }
+          width: { ideal: 1280, min: 640 },
+          height: { ideal: 720, min: 480 },
+          facingMode: 'user',
+          frameRate: { ideal: 30, min: 15 }
+        },
+        audio: false
       });
       setStream(mediaStream);
-      setDetectionStatus('Camera started');
+      setDetectionStatus('Camera started - preparing detection...');
     } catch (error) {
       console.error('Error accessing camera:', error);
       toast({
         title: "Camera Error",
-        description: "Unable to access camera. Please check permissions.",
+        description: "Unable to access camera. Please check permissions and ensure your device has a camera.",
         variant: "destructive",
       });
     }
@@ -117,13 +119,16 @@ export function CameraFaceCapture({
                 const detection = detections[0];
                 const confidence = detection.detection.score;
                 
-                if (confidence > 0.6) { // Higher confidence threshold
+                if (confidence > 0.7) { // Even higher confidence threshold for better accuracy
                   setIsDetected(true);
                   setFaceDescriptor(detection.descriptor);
                   setDetectionStatus(`Face detected! (${Math.round(confidence * 100)}% confidence)`);
+                } else if (confidence > 0.4) {
+                  setIsDetected(false);
+                  setDetectionStatus(`Face detected but quality too low (${Math.round(confidence * 100)}%) - improve lighting and positioning`);
                 } else {
                   setIsDetected(false);
-                  setDetectionStatus('Face quality too low - improve lighting');
+                  setDetectionStatus('No clear face detected - position your face in the frame');
                 }
               } else {
                 setIsDetected(false);
@@ -459,10 +464,11 @@ export function CameraFaceCapture({
               <h4 className="text-xs sm:text-sm font-medium text-blue-800 mb-2">Tips for best results:</h4>
               <ul className="text-xs sm:text-sm text-blue-700 space-y-1">
                 <li>• Look directly at the camera</li>
-                <li>• Ensure good lighting on your face</li>
-                <li>• Keep your face within the frame</li>
-                <li className="hidden sm:list-item">• Remove glasses and hat if possible</li>
-                <li>• Stay still during capture</li>
+                <li>• Ensure bright, even lighting on your face</li>
+                <li>• Keep your face centered in the frame</li>
+                <li>• Remove glasses, hats, and face coverings</li>
+                <li>• Stay still and maintain neutral expression</li>
+                <li className="hidden sm:list-item">• Keep camera at eye level for best results</li>
               </ul>
             </div>
 

@@ -5,23 +5,130 @@ import { storage } from "./storage";
 import { insertAttendanceRecordSchema } from "@shared/schema";
 import { format, differenceInMinutes } from "date-fns";
 
-// Face matching utility functions
-function extractFaceCharacteristics(faceData: string): string {
-  // Extract the base64 portion from the face data string
-  const parts = faceData.split('_');
-  if (parts.length >= 3) {
-    return parts[2]; // The hash portion contains face characteristics
+// Enhanced face matching utility functions
+function extractFaceCharacteristics(faceData: string): any {
+  try {
+    // Try parsing as JSON first (enhanced descriptors)
+    return JSON.parse(faceData);
+  } catch (error) {
+    // Fallback for legacy format
+    const parts = faceData.split('_');
+    if (parts.length >= 3) {
+      return { legacy: parts[2] };
+    }
+    return { legacy: faceData.substring(faceData.length - 20) };
   }
-  return faceData.substring(faceData.length - 20); // Fallback to last 20 chars
 }
 
 function calculateFaceSimilarity(stored: string, captured: string): number {
-  // Simple similarity calculation based on string matching
-  // In a real implementation, this would use ML algorithms to compare facial features
+  const storedFeatures = extractFaceCharacteristics(stored);
+  const capturedFeatures = extractFaceCharacteristics(captured);
   
-  if (stored === captured) return 1.0; // Perfect match
+  // Handle face-api.js descriptors (arrays of numbers)
+  if (Array.isArray(storedFeatures) && Array.isArray(capturedFeatures)) {
+    return calculateEuclideanSimilarity(storedFeatures, capturedFeatures);
+  }
   
-  // Calculate character-level similarity
+  // Handle enhanced feature objects
+  if (storedFeatures.eyeRegion && capturedFeatures.eyeRegion) {
+    return calculateEnhancedFeatureSimilarity(storedFeatures, capturedFeatures);
+  }
+  
+  // Handle legacy format
+  if (storedFeatures.legacy && capturedFeatures.legacy) {
+    return calculateBasicSimilarity(storedFeatures.legacy, capturedFeatures.legacy);
+  }
+  
+  // Mixed formats - return low confidence
+  return 0.3;
+}
+
+function calculateEuclideanSimilarity(descriptor1: number[], descriptor2: number[]): number {
+  if (descriptor1.length !== descriptor2.length) return 0;
+  
+  let sumSquaredDiffs = 0;
+  for (let i = 0; i < descriptor1.length; i++) {
+    const diff = descriptor1[i] - descriptor2[i];
+    sumSquaredDiffs += diff * diff;
+  }
+  
+  const distance = Math.sqrt(sumSquaredDiffs);
+  // Convert distance to similarity (lower distance = higher similarity)
+  // Face-api.js typical threshold is 0.6, we use 0.5 for stricter matching
+  const similarity = Math.max(0, 1 - (distance / 0.5));
+  return similarity;
+}
+
+function calculateEnhancedFeatureSimilarity(stored: any, captured: any): number {
+  let totalSimilarity = 0;
+  
+  // Compare facial regions (75% weight)
+  const regions = ['eyeRegion', 'noseRegion', 'mouthRegion'];
+  for (const region of regions) {
+    if (stored[region] && captured[region]) {
+      const regionSim = compareRegion(stored[region], captured[region]);
+      totalSimilarity += regionSim * 0.25; // Each region worth 25%
+    }
+  }
+  
+  // Compare overall brightness (10% weight)
+  if (stored.overallBrightness && captured.overallBrightness) {
+    const brightnessDiff = Math.abs(stored.overallBrightness - captured.overallBrightness);
+    const brightnessSim = Math.max(0, 1 - (brightnessDiff / 255));
+    totalSimilarity += brightnessSim * 0.10;
+  }
+  
+  // Compare color distribution (15% weight)
+  if (stored.colorDistribution && captured.colorDistribution) {
+    const colorSim = compareColorDistribution(stored.colorDistribution, captured.colorDistribution);
+    totalSimilarity += colorSim * 0.15;
+  }
+  
+  return totalSimilarity;
+}
+
+function compareRegion(region1: any, region2: any): number {
+  let similarity = 0;
+  let factors = 0;
+  
+  // Compare average RGB values
+  ['avgR', 'avgG', 'avgB'].forEach(color => {
+    if (region1[color] !== undefined && region2[color] !== undefined) {
+      const diff = Math.abs(region1[color] - region2[color]);
+      similarity += Math.max(0, 1 - (diff / 255));
+      factors++;
+    }
+  });
+  
+  // Compare brightness
+  if (region1.brightness !== undefined && region2.brightness !== undefined) {
+    const brightnessDiff = Math.abs(region1.brightness - region2.brightness);
+    similarity += Math.max(0, 1 - (brightnessDiff / 255));
+    factors++;
+  }
+  
+  return factors > 0 ? similarity / factors : 0;
+}
+
+function compareColorDistribution(dist1: number[], dist2: number[]): number {
+  if (!dist1 || !dist2 || dist1.length !== dist2.length) return 0;
+  
+  let similarity = 0;
+  const total1 = dist1.reduce((sum, val) => sum + val, 0);
+  const total2 = dist2.reduce((sum, val) => sum + val, 0);
+  
+  for (let i = 0; i < dist1.length; i++) {
+    const norm1 = total1 > 0 ? dist1[i] / total1 : 0;
+    const norm2 = total2 > 0 ? dist2[i] / total2 : 0;
+    similarity += 1 - Math.abs(norm1 - norm2);
+  }
+  
+  return similarity / dist1.length;
+}
+
+function calculateBasicSimilarity(stored: string, captured: string): number {
+  if (stored === captured) return 1.0;
+  
   const minLength = Math.min(stored.length, captured.length);
   const maxLength = Math.max(stored.length, captured.length);
   
@@ -34,7 +141,6 @@ function calculateFaceSimilarity(stored: string, captured: string): number {
     }
   }
   
-  // Account for length difference and calculate similarity
   const baseSimilarity = matches / maxLength;
   const lengthPenalty = (maxLength - minLength) / maxLength;
   
@@ -44,30 +150,48 @@ function calculateFaceSimilarity(stored: string, captured: string): number {
 export function registerRoutes(app: Express): Server {
   setupAuth(app);
 
-  // Enhanced face matching that considers user-specific characteristics
+  // Enhanced face matching with improved accuracy
   function matchUserFace(storedFaceData: string, capturedFaceData: string, userId: number): boolean {
     try {
-      // Extract meaningful characteristics from both face data strings
-      const storedHash = extractFaceCharacteristics(storedFaceData);
-      const capturedHash = extractFaceCharacteristics(capturedFaceData);
+      const similarity = calculateFaceSimilarity(storedFaceData, capturedFaceData);
+      const storedFeatures = extractFaceCharacteristics(storedFaceData);
+      const capturedFeatures = extractFaceCharacteristics(capturedFaceData);
       
-      // Calculate similarity score
-      const similarity = calculateFaceSimilarity(storedHash, capturedHash);
+      // Determine threshold based on descriptor type
+      let threshold = 0.7; // Default threshold
+      let descriptorType = 'basic';
       
-      // Validate timestamp to ensure fresh capture
-      const capturedParts = capturedFaceData.split('_');
-      const isValidFormat = capturedParts.length >= 2;
-      const capturedTimestamp = isValidFormat ? parseInt(capturedParts[1]) : 0;
-      const isRecentCapture = isValidFormat && (Date.now() - capturedTimestamp) < 300000; // Within 5 minutes
+      if (Array.isArray(storedFeatures) && Array.isArray(capturedFeatures)) {
+        // Face-api.js descriptors are most accurate
+        threshold = 0.75;
+        descriptorType = 'face-api';
+      } else if (storedFeatures.eyeRegion && capturedFeatures.eyeRegion) {
+        // Enhanced features are moderately accurate
+        threshold = 0.72;
+        descriptorType = 'enhanced';
+      } else if (storedFeatures.legacy && capturedFeatures.legacy) {
+        // Basic similarity needs lower threshold
+        threshold = 0.65;
+        descriptorType = 'legacy';
+      }
       
-      // Check if stored data contains user-specific elements
-      const storedParts = storedFaceData.split('_');
-      const hasValidStoredFormat = storedParts.length >= 3;
+      // Additional validation for enhanced/face-api descriptors
+      let isValidCapture = true;
+      if (capturedFeatures.timestamp) {
+        const captureAge = Date.now() - capturedFeatures.timestamp;
+        isValidCapture = captureAge < 300000; // Within 5 minutes
+      }
       
-      console.log(`Face match for user ${userId}: similarity=${similarity.toFixed(3)}, recent=${isRecentCapture}, validFormat=${hasValidStoredFormat}`);
+      const isMatch = similarity >= threshold && isValidCapture;
       
-      // Must have high similarity, recent capture, and valid format
-      return similarity >= 0.8 && isRecentCapture && hasValidStoredFormat;
+      console.log(`Face verification for user ${userId}:`);
+      console.log(`- Descriptor type: ${descriptorType}`);
+      console.log(`- Similarity: ${(similarity * 100).toFixed(1)}%`);
+      console.log(`- Threshold: ${(threshold * 100).toFixed(1)}%`);
+      console.log(`- Valid capture: ${isValidCapture}`);
+      console.log(`- Match result: ${isMatch}`);
+      
+      return isMatch;
     } catch (error) {
       console.error('Face matching error:', error);
       return false;
