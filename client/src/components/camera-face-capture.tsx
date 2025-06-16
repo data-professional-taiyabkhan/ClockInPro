@@ -202,27 +202,27 @@ export function CameraFaceCapture({
 
   if (capturedImage) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-4 sm:space-y-6">
         <div className="text-center">
-          <h3 className="text-xl font-semibold mb-2">{title}</h3>
-          <p className="text-gray-600">{description}</p>
+          <h3 className="text-lg sm:text-xl font-semibold mb-2">{title}</h3>
+          <p className="text-gray-600 text-sm sm:text-base">{description}</p>
         </div>
 
         <Card>
-          <CardContent className="pt-6">
-            <div className="relative mb-6">
+          <CardContent className="pt-4 sm:pt-6 px-4 sm:px-6">
+            <div className="relative mb-4 sm:mb-6">
               <img 
                 src={capturedImage} 
                 alt="Captured face" 
-                className="w-full h-64 object-cover rounded-xl"
+                className="w-full h-48 sm:h-64 object-cover rounded-xl"
               />
-              <div className="absolute top-3 right-3 bg-green-600 text-white px-3 py-1 rounded-full text-sm font-medium flex items-center">
-                <Check className="w-4 h-4 mr-1" />
+              <div className="absolute top-2 right-2 sm:top-3 sm:right-3 bg-green-600 text-white px-2 py-1 sm:px-3 sm:py-1 rounded-full text-xs sm:text-sm font-medium flex items-center">
+                <Check className="w-3 h-3 sm:w-4 sm:h-4 mr-1" />
                 Captured
               </div>
             </div>
 
-            <div className="flex space-x-3">
+            <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-3">
               <Button variant="outline" onClick={retakePhoto} className="flex-1">
                 <RotateCcw className="w-4 h-4 mr-2" />
                 Retake
@@ -239,15 +239,15 @@ export function CameraFaceCapture({
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       <div className="text-center">
-        <h3 className="text-xl font-semibold mb-2">{title}</h3>
-        <p className="text-gray-600">{description}</p>
+        <h3 className="text-lg sm:text-xl font-semibold mb-2">{title}</h3>
+        <p className="text-gray-600 text-sm sm:text-base">{description}</p>
       </div>
 
       <Card>
-        <CardContent className="pt-6">
-          <div className="relative mb-6">
+        <CardContent className="pt-4 sm:pt-6 px-4 sm:px-6">
+          <div className="relative mb-4 sm:mb-6">
             <div className="aspect-video bg-gray-900 rounded-xl overflow-hidden relative">
               {stream ? (
                 <>
@@ -260,58 +260,61 @@ export function CameraFaceCapture({
                   />
                   <canvas ref={canvasRef} className="hidden" />
                   
-                  {/* Face detection overlay */}
+                  {/* Face detection overlay - responsive sizing */}
                   <div className="absolute inset-0 flex items-center justify-center">
-                    <div className={`w-48 h-60 border-4 rounded-2xl transition-colors duration-300 ${
+                    <div className={`w-32 h-40 sm:w-48 sm:h-60 border-4 rounded-2xl transition-colors duration-300 ${
                       isDetected ? "border-green-500" : "border-blue-500"
                     }`} />
                   </div>
                   
-                  {/* Corner indicators */}
+                  {/* Corner indicators - responsive positioning */}
                   {[
-                    "top-4 left-4 border-l-4 border-t-4 rounded-tl-lg",
-                    "top-4 right-4 border-r-4 border-t-4 rounded-tr-lg", 
-                    "bottom-4 left-4 border-l-4 border-b-4 rounded-bl-lg",
-                    "bottom-4 right-4 border-r-4 border-b-4 rounded-br-lg"
+                    "top-2 left-2 sm:top-4 sm:left-4 border-l-4 border-t-4 rounded-tl-lg",
+                    "top-2 right-2 sm:top-4 sm:right-4 border-r-4 border-t-4 rounded-tr-lg", 
+                    "bottom-2 left-2 sm:bottom-4 sm:left-4 border-l-4 border-b-4 rounded-bl-lg",
+                    "bottom-2 right-2 sm:bottom-4 sm:right-4 border-r-4 border-b-4 rounded-br-lg"
                   ].map((position, index) => (
-                    <div key={index} className={`absolute w-8 h-8 transition-colors duration-300 ${
+                    <div key={index} className={`absolute w-6 h-6 sm:w-8 sm:h-8 transition-colors duration-300 ${
                       isDetected ? "border-green-500" : "border-blue-500"
                     } ${position}`} />
                   ))}
                   
-                  {/* Status indicator */}
-                  <div className={`absolute bottom-4 left-1/2 transform -translate-x-1/2 px-4 py-2 rounded-full text-sm font-medium ${
+                  {/* Status indicator - responsive sizing */}
+                  <div className={`absolute bottom-2 sm:bottom-4 left-1/2 transform -translate-x-1/2 px-3 py-1 sm:px-4 sm:py-2 rounded-full text-xs sm:text-sm font-medium ${
                     isDetected 
                       ? "bg-green-600 text-white" 
                       : "bg-yellow-600 text-white"
                   }`}>
-                    {detectionStatus}
+                    <span className="hidden sm:inline">{detectionStatus}</span>
+                    <span className="sm:hidden">
+                      {isDetected ? "Face detected!" : "Position face"}
+                    </span>
                   </div>
                 </>
               ) : (
                 <div className="w-full h-full flex items-center justify-center">
                   <div className="text-center text-white">
-                    <Camera className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                    <p>Starting camera...</p>
+                    <Camera className="h-8 w-8 sm:h-12 sm:w-12 mx-auto mb-2 opacity-50" />
+                    <p className="text-sm sm:text-base">Starting camera...</p>
                   </div>
                 </div>
               )}
             </div>
           </div>
 
-          <div className="space-y-4">
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <h4 className="text-sm font-medium text-blue-800 mb-2">Tips for best results:</h4>
-              <ul className="text-sm text-blue-700 space-y-1">
+          <div className="space-y-3 sm:space-y-4">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 sm:p-4">
+              <h4 className="text-xs sm:text-sm font-medium text-blue-800 mb-2">Tips for best results:</h4>
+              <ul className="text-xs sm:text-sm text-blue-700 space-y-1">
                 <li>• Look directly at the camera</li>
                 <li>• Ensure good lighting on your face</li>
-                <li>• Keep your face within the blue frame</li>
-                <li>• Remove glasses and hat if possible</li>
+                <li>• Keep your face within the frame</li>
+                <li className="hidden sm:list-item">• Remove glasses and hat if possible</li>
                 <li>• Stay still during capture</li>
               </ul>
             </div>
 
-            <div className="flex space-x-3">
+            <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-3">
               <Button variant="outline" onClick={onCancel} className="flex-1">
                 <X className="w-4 h-4 mr-2" />
                 Cancel
@@ -322,7 +325,12 @@ export function CameraFaceCapture({
                 className="flex-1"
               >
                 <Camera className="w-4 h-4 mr-2" />
-                {isCapturing ? "Capturing..." : "Capture Face"}
+                <span className="hidden sm:inline">
+                  {isCapturing ? "Capturing..." : "Capture Face"}
+                </span>
+                <span className="sm:hidden">
+                  {isCapturing ? "Capturing..." : "Capture"}
+                </span>
               </Button>
             </div>
           </div>

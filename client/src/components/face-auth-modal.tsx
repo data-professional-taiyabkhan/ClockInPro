@@ -59,35 +59,37 @@ export function FaceAuthModal({ isOpen, onClose, onSuccess, action }: FaceAuthMo
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>
+      <DialogContent className="sm:max-w-lg max-w-[95vw] max-h-[95vh] overflow-y-auto">
+        <DialogHeader className="px-4 sm:px-6">
+          <DialogTitle className="text-lg sm:text-xl">
             {action === 'in' ? 'Clock In' : 'Clock Out'} - Face Verification
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="text-sm sm:text-base">
             Use face authentication to securely {action === 'in' ? 'clock in' : 'clock out'} for your attendance.
           </DialogDescription>
         </DialogHeader>
-        {showCamera ? (
-          <CameraFaceCapture
-            onCapture={handleFaceCapture}
-            onCancel={handleCancel}
-            title={`Verify Identity for Clock ${action === 'in' ? 'In' : 'Out'}`}
-            description="Position your face within the frame to verify your identity"
-            isVerification={true}
-          />
-        ) : (
-          <div className="text-center p-6">
-            <div className="mx-auto h-12 w-12 bg-primary rounded-full flex items-center justify-center mb-4">
-              <User className="h-6 w-6 text-white" />
+        <div className="px-4 sm:px-6 pb-4 sm:pb-6">
+          {showCamera ? (
+            <CameraFaceCapture
+              onCapture={handleFaceCapture}
+              onCancel={handleCancel}
+              title={`Verify Identity for Clock ${action === 'in' ? 'In' : 'Out'}`}
+              description="Position your face within the frame to verify your identity"
+              isVerification={true}
+            />
+          ) : (
+            <div className="text-center p-4 sm:p-6">
+              <div className="mx-auto h-10 w-10 sm:h-12 sm:w-12 bg-primary rounded-full flex items-center justify-center mb-3 sm:mb-4">
+                <User className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
+              </div>
+              <h3 className="text-base sm:text-lg font-semibold mb-2">Face Verification</h3>
+              <p className="text-gray-600 mb-4 sm:mb-6 text-sm sm:text-base">Prepare for face authentication</p>
+              <Button onClick={() => setShowCamera(true)} className="w-full">
+                Start Face Verification
+              </Button>
             </div>
-            <h3 className="text-lg font-semibold mb-2">Face Verification</h3>
-            <p className="text-gray-600 mb-6">Prepare for face authentication</p>
-            <Button onClick={() => setShowCamera(true)} className="w-full">
-              Start Face Verification
-            </Button>
-          </div>
-        )}
+          )}
+        </div>
       </DialogContent>
     </Dialog>
   );
