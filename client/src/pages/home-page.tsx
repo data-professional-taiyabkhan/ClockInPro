@@ -152,7 +152,7 @@ export default function HomePage() {
 
       <div className="max-w-4xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8">
         {/* Face Registration Alert */}
-        {!user?.faceRegistered && (
+        {!user?.faceRegistered ? (
           <Alert className="mb-4 sm:mb-6 border-orange-200 bg-orange-50">
             <AlertCircle className="h-4 w-4 text-orange-600" />
             <AlertDescription className="text-orange-800">
@@ -165,6 +165,23 @@ export default function HomePage() {
                 >
                   <Camera className="w-4 h-4 mr-2" />
                   Register Face
+                </Button>
+              </div>
+            </AlertDescription>
+          </Alert>
+        ) : (
+          <Alert className="mb-4 sm:mb-6 border-blue-200 bg-blue-50">
+            <AlertCircle className="h-4 w-4 text-blue-600" />
+            <AlertDescription className="text-blue-800">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-3 sm:space-y-0">
+                <span className="text-sm sm:text-base">Upgrade to enhanced face security with improved accuracy and protection.</span>
+                <Button 
+                  size="sm" 
+                  onClick={() => setShowFaceRegistration(true)}
+                  className="sm:ml-4 bg-blue-600 hover:bg-blue-700 w-full sm:w-auto"
+                >
+                  <Camera className="w-4 h-4 mr-2" />
+                  Re-register Face
                 </Button>
               </div>
             </AlertDescription>
