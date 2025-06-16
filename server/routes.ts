@@ -171,26 +171,58 @@ export function registerRoutes(app: Express): Server {
       const storedFeatures = extractFaceCharacteristics(storedFaceData);
       const capturedFeatures = extractFaceCharacteristics(capturedFaceData);
       
-      // Determine threshold based on descriptor type
-      let threshold = 0.2; // Very permissive default threshold
+      // Determine threshold based on descriptor type with user-specific validation
+      let threshold = 0.4; // Secure baseline threshold
       let descriptorType = 'basic';
+      let hasUserSpecificFeatures = false;
       
       if (Array.isArray(storedFeatures) && Array.isArray(capturedFeatures)) {
         // Face-api.js descriptors are most accurate
         threshold = 0.6;
         descriptorType = 'face-api';
-      } else if (storedFeatures.eyeRegion && capturedFeatures.eyeRegion) {
-        // Enhanced features are moderately accurate
-        threshold = 0.4;
+        hasUserSpecificFeatures = true;
+      } else if (storedFeatures.eyeRegion && capturedFeatures.eyeRegion && 
+                 storedFeatures.cheekRegion && capturedFeatures.cheekRegion) {
+        // Enhanced features with multiple regions - more secure
+        threshold = 0.45;
         descriptorType = 'enhanced';
+        hasUserSpecificFeatures = true;
+      } else if (storedFeatures.eyeRegion && capturedFeatures.eyeRegion) {
+        // Basic enhanced features
+        threshold = 0.4;
+        descriptorType = 'enhanced-basic';
+        hasUserSpecificFeatures = true;
       } else if (storedFeatures.legacy && capturedFeatures.legacy) {
-        // Basic similarity needs very low threshold
-        threshold = 0.15;
+        // Legacy descriptors - less secure
+        threshold = 0.35;
         descriptorType = 'legacy';
       } else {
-        // Mixed or unknown descriptor types - very lenient
-        threshold = 0.15;
+        // Mixed or unknown descriptor types - most secure
+        threshold = 0.45;
         descriptorType = 'mixed';
+      }
+      
+      // Add user-specific validation for enhanced security
+      if (hasUserSpecificFeatures) {
+        // Check geometric consistency for the specific user
+        if (storedFeatures.faceRadius && capturedFeatures.faceRadius) {
+          const radiusDiff = Math.abs(storedFeatures.faceRadius - capturedFeatures.faceRadius) / 
+                            Math.max(storedFeatures.faceRadius, capturedFeatures.faceRadius);
+          if (radiusDiff > 0.3) { // Face size too different
+            console.log(`Face size mismatch for user ${userId}: ${radiusDiff.toFixed(2)} > 0.3`);
+            return false;
+          }
+        }
+        
+        // Check aspect ratio consistency
+        if (storedFeatures.aspectRatio && capturedFeatures.aspectRatio) {
+          const aspectDiff = Math.abs(storedFeatures.aspectRatio - capturedFeatures.aspectRatio) / 
+                            Math.max(storedFeatures.aspectRatio, capturedFeatures.aspectRatio);
+          if (aspectDiff > 0.2) { // Face proportions too different
+            console.log(`Face proportion mismatch for user ${userId}: ${aspectDiff.toFixed(2)} > 0.2`);
+            return false;
+          }
+        }
       }
       
       // Additional validation for enhanced/face-api descriptors

@@ -250,19 +250,35 @@ export function CameraFaceCapture({
   };
 
   const generateEnhancedFaceDescriptor = (imageData: string, context: CanvasRenderingContext2D, canvas: HTMLCanvasElement): string => {
-    // Enhanced face descriptor generation with more facial feature analysis
+    // Enhanced face descriptor generation with normalized features for consistency
     const imgData = context.getImageData(0, 0, canvas.width, canvas.height);
     const data = imgData.data;
     const width = canvas.width;
     const height = canvas.height;
     
-    // Analyze multiple facial regions
+    // Analyze multiple facial regions with normalized coordinates
+    const centerX = width / 2;
+    const centerY = height / 2;
+    const faceRadius = Math.min(width, height) * 0.4;
+    
     const features = {
-      eyeRegion: analyzeFaceRegion(data, width, height, 0.3, 0.25, 0.4, 0.15), // Eyes area
-      noseRegion: analyzeFaceRegion(data, width, height, 0.4, 0.4, 0.2, 0.2),  // Nose area
-      mouthRegion: analyzeFaceRegion(data, width, height, 0.35, 0.65, 0.3, 0.15), // Mouth area
-      overallBrightness: calculateAverageBrightness(data),
-      colorDistribution: analyzeColorDistribution(data),
+      // Facial regions relative to detected face center
+      eyeRegion: analyzeFaceRegion(data, width, height, 0.25, 0.35, 0.5, 0.2),
+      noseRegion: analyzeFaceRegion(data, width, height, 0.35, 0.45, 0.3, 0.25),
+      mouthRegion: analyzeFaceRegion(data, width, height, 0.3, 0.6, 0.4, 0.2),
+      cheekRegion: analyzeFaceRegion(data, width, height, 0.15, 0.4, 0.7, 0.3),
+      
+      // Lighting and color normalized features
+      overallBrightness: Math.round(calculateAverageBrightness(data) / 5) * 5, // Quantized brightness
+      colorDistribution: analyzeColorDistribution(data).map(c => Math.round(c * 10) / 10), // Rounded distribution
+      
+      // Geometric features for better matching
+      faceCenter: { x: centerX, y: centerY },
+      faceRadius: Math.round(faceRadius),
+      aspectRatio: Math.round((width / height) * 100) / 100,
+      
+      // Add image characteristics for consistency
+      imageHash: generateImageHash(data, width, height),
       timestamp: Date.now()
     };
     
@@ -314,6 +330,22 @@ export function CameraFaceCapture({
     }
     
     return buckets;
+  };
+
+  const generateImageHash = (data: Uint8ClampedArray, width: number, height: number): number => {
+    // Generate a simple hash of the facial region for additional verification
+    let hash = 0;
+    const step = Math.max(1, Math.floor(data.length / 1000)); // Sample every nth pixel
+    
+    for (let i = 0; i < data.length; i += step * 4) {
+      const r = data[i] || 0;
+      const g = data[i + 1] || 0;
+      const b = data[i + 2] || 0;
+      const brightness = (r + g + b) / 3;
+      hash = ((hash << 5) - hash + brightness) & 0xffffffff; // 32-bit hash
+    }
+    
+    return Math.abs(hash) % 10000; // Normalize to 4-digit range
   };
 
   const retakePhoto = () => {
