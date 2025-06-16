@@ -47,18 +47,22 @@ export function CameraFaceCapture({
   const loadModels = async () => {
     try {
       setDetectionStatus('Loading face recognition models...');
-      await Promise.all([
+      
+      // Try to load models with better error handling
+      const modelPromises = [
         faceapi.nets.tinyFaceDetector.loadFromUri('/models'),
         faceapi.nets.faceLandmark68Net.loadFromUri('/models'),
-        faceapi.nets.faceRecognitionNet.loadFromUri('/models'),
-        faceapi.nets.faceExpressionNet.loadFromUri('/models'),
-      ]);
+        faceapi.nets.faceRecognitionNet.loadFromUri('/models')
+      ];
+      
+      await Promise.all(modelPromises);
       setModelsLoaded(true);
-      setDetectionStatus('Models loaded, starting camera...');
+      setDetectionStatus('AI models loaded - starting camera...');
       startCamera();
     } catch (error) {
       console.error('Error loading face detection models:', error);
-      setDetectionStatus('Using basic detection (models failed to load)');
+      setModelsLoaded(false);
+      setDetectionStatus('Using enhanced detection (AI models unavailable)');
       startCamera();
     }
   };

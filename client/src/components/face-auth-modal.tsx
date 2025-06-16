@@ -21,6 +21,12 @@ export function FaceAuthModal({ isOpen, onClose, onSuccess, action }: FaceAuthMo
   const verifyFaceMutation = useMutation({
     mutationFn: async (faceData: string) => {
       const res = await apiRequest("POST", "/api/verify-face", { faceData });
+      
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.message || "Face verification failed");
+      }
+      
       return await res.json();
     },
     onSuccess: () => {
@@ -31,9 +37,22 @@ export function FaceAuthModal({ isOpen, onClose, onSuccess, action }: FaceAuthMo
       onSuccess();
     },
     onError: (error: Error) => {
+      let errorMessage = error.message;
+      
+      // Provide user-friendly error messages
+      if (errorMessage.includes("face does not match")) {
+        errorMessage = "Your face doesn't match the registered profile. Please try again with better lighting or re-register your face.";
+      } else if (errorMessage.includes("not registered")) {
+        errorMessage = "No face profile found. Please register your face first from the dashboard.";
+      } else if (errorMessage.includes("quality too low")) {
+        errorMessage = "Face image quality is too low. Please improve lighting and try again.";
+      } else if (!errorMessage || errorMessage === "Face verification failed") {
+        errorMessage = "Face verification failed. Please ensure good lighting and try again.";
+      }
+      
       toast({
-        title: "Face Verification Failed",
-        description: error.message,
+        title: "Verification Failed",
+        description: errorMessage,
         variant: "destructive",
       });
       setShowCamera(false);

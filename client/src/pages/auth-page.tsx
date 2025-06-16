@@ -60,6 +60,12 @@ export default function AuthPage() {
   const faceRegistrationMutation = useMutation({
     mutationFn: async (faceData: string) => {
       const res = await apiRequest("POST", "/api/register-face", { faceData });
+      
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.message || "Face registration failed");
+      }
+      
       return await res.json();
     },
     onSuccess: () => {
@@ -70,9 +76,17 @@ export default function AuthPage() {
       setLocation("/");
     },
     onError: (error: Error) => {
+      let errorMessage = error.message;
+      
+      if (errorMessage.includes("quality too low")) {
+        errorMessage = "Face image quality is too low. Please ensure good lighting and try again.";
+      } else if (!errorMessage || errorMessage === "Face registration failed") {
+        errorMessage = "Face registration failed. Please ensure good lighting and clear face visibility.";
+      }
+      
       toast({
-        title: "Face Registration Failed",
-        description: error.message,
+        title: "Registration Failed",
+        description: errorMessage,
         variant: "destructive",
       });
     },

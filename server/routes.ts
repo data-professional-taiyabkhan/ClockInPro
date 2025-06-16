@@ -317,7 +317,24 @@ export function registerRoutes(app: Express): Server {
       if (isValidMatch) {
         res.json({ verified: true, message: "Face verification successful" });
       } else {
-        res.status(400).json({ verified: false, message: "Face verification failed - face does not match registered user" });
+        // More specific error messages based on similarity scores
+        const similarity = calculateFaceSimilarity(user.faceData, faceData);
+        const storedFeatures = extractFaceCharacteristics(user.faceData);
+        const capturedFeatures = extractFaceCharacteristics(faceData);
+        
+        let errorMessage = "Face verification failed - face does not match registered user";
+        
+        if (similarity < 0.3) {
+          errorMessage = "Face verification failed - captured face appears to be a different person";
+        } else if (similarity < 0.5) {
+          errorMessage = "Face verification failed - face similarity too low, please improve lighting and positioning";
+        } else if (capturedFeatures.timestamp && (Date.now() - capturedFeatures.timestamp) > 300000) {
+          errorMessage = "Face verification failed - capture too old, please try again";
+        } else {
+          errorMessage = "Face verification failed - face does not match registered profile with sufficient confidence";
+        }
+        
+        res.status(400).json({ verified: false, message: errorMessage });
       }
     } catch (error) {
       console.error('Face verification error:', error);
