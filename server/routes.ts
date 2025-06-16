@@ -178,7 +178,7 @@ export function registerRoutes(app: Express): Server {
       
       if (Array.isArray(storedFeatures) && Array.isArray(capturedFeatures)) {
         // Face-api.js descriptors are most accurate
-        threshold = 0.6;
+        threshold = 0.45;
         descriptorType = 'face-api';
         hasUserSpecificFeatures = true;
       } else if (storedFeatures.eyeRegion && capturedFeatures.eyeRegion && 
