@@ -104,6 +104,21 @@ export default function AuthPage() {
     return null;
   }
 
+  if (showFaceCapture) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4 bg-gray-50">
+        <div className="max-w-lg w-full">
+          <CameraFaceCapture
+            onCapture={handleFaceCapture}
+            onCancel={handleCancelFaceCapture}
+            title="Register Your Face"
+            description="Complete your registration by setting up face authentication for secure clock in/out"
+          />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen flex">
       {/* Left side - Auth forms */}
