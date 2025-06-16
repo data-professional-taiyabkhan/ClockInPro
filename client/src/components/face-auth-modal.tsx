@@ -60,6 +60,11 @@ export function FaceAuthModal({ isOpen, onClose, onSuccess, action }: FaceAuthMo
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>
+            {action === 'in' ? 'Clock In' : 'Clock Out'} - Face Verification
+          </DialogTitle>
+        </DialogHeader>
         {showCamera ? (
           <CameraFaceCapture
             onCapture={handleFaceCapture}
