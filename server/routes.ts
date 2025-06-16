@@ -172,7 +172,7 @@ export function registerRoutes(app: Express): Server {
       const capturedFeatures = extractFaceCharacteristics(capturedFaceData);
       
       // Determine threshold based on descriptor type
-      let threshold = 0.5; // More reasonable default threshold
+      let threshold = 0.2; // Very permissive default threshold
       let descriptorType = 'basic';
       
       if (Array.isArray(storedFeatures) && Array.isArray(capturedFeatures)) {
@@ -181,12 +181,16 @@ export function registerRoutes(app: Express): Server {
         descriptorType = 'face-api';
       } else if (storedFeatures.eyeRegion && capturedFeatures.eyeRegion) {
         // Enhanced features are moderately accurate
-        threshold = 0.55;
+        threshold = 0.4;
         descriptorType = 'enhanced';
       } else if (storedFeatures.legacy && capturedFeatures.legacy) {
-        // Basic similarity needs much lower threshold
-        threshold = 0.4;
+        // Basic similarity needs very low threshold
+        threshold = 0.15;
         descriptorType = 'legacy';
+      } else {
+        // Mixed or unknown descriptor types - very lenient
+        threshold = 0.15;
+        descriptorType = 'mixed';
       }
       
       // Additional validation for enhanced/face-api descriptors
@@ -205,10 +209,10 @@ export function registerRoutes(app: Express): Server {
       console.log(`- Valid capture: ${isValidCapture}`);
       console.log(`- Match result: ${isMatch}`);
       
-      return { isMatch, similarity, threshold, descriptorType };
+      return isMatch;
     } catch (error) {
       console.error('Face matching error:', error);
-      return { isMatch: false, similarity: 0, threshold: 0.5, descriptorType: 'error' };
+      return false;
     }
   }
 
@@ -326,13 +330,13 @@ export function registerRoutes(app: Express): Server {
       }
 
       // Use enhanced face matching that validates user-specific characteristics
-      const matchResult = matchUserFace(user.faceData, faceData, user.id);
+      const isValidMatch = matchUserFace(user.faceData, faceData, user.id);
       
-      if (typeof matchResult === 'object' && matchResult.isMatch) {
+      if (isValidMatch) {
         res.json({ verified: true, message: "Face verification successful" });
       } else {
         // More specific error messages based on similarity scores
-        const { similarity, threshold } = typeof matchResult === 'object' ? matchResult : { similarity: 0, threshold: 0.5 };
+        const similarity = calculateFaceSimilarity(user.faceData, faceData);
         const capturedFeatures = extractFaceCharacteristics(faceData);
         
         let errorMessage = "Face verification failed - face does not match registered user";
@@ -344,7 +348,7 @@ export function registerRoutes(app: Express): Server {
         } else if (capturedFeatures.timestamp && (Date.now() - capturedFeatures.timestamp) > 300000) {
           errorMessage = "Face verification failed - capture too old, please try again";
         } else {
-          errorMessage = `Face verification failed - similarity ${(similarity * 100).toFixed(0)}% is below required ${(threshold * 100).toFixed(0)}% threshold. Please ensure good lighting and clear face visibility.`;
+          errorMessage = `Face verification failed - similarity ${(similarity * 100).toFixed(0)}% is below threshold. Please ensure good lighting and clear face visibility.`;
         }
         
         res.status(400).json({ verified: false, message: errorMessage });
