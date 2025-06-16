@@ -23,31 +23,51 @@ export function CameraFaceCapture({
   const [isDetected, setIsDetected] = useState(false);
   const [isCapturing, setIsCapturing] = useState(false);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
+  const [modelsLoaded, setModelsLoaded] = useState(false);
+  const [faceCount, setFaceCount] = useState(0);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const detectionIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
+    loadFaceApiModels();
     startCamera();
     return () => {
       if (stream) {
         stream.getTracks().forEach(track => track.stop());
       }
+      if (detectionIntervalRef.current) {
+        clearInterval(detectionIntervalRef.current);
+      }
     };
   }, []);
 
   useEffect(() => {
-    if (stream && videoRef.current) {
+    if (stream && videoRef.current && modelsLoaded) {
       videoRef.current.srcObject = stream;
-      
-      // Simulate face detection after video starts
-      const timer = setTimeout(() => {
-        setIsDetected(true);
-      }, 2000);
-      
-      return () => clearTimeout(timer);
+      videoRef.current.onloadedmetadata = () => {
+        startFaceDetection();
+      };
     }
-  }, [stream]);
+  }, [stream, modelsLoaded]);
+
+  const loadFaceApiModels = async () => {
+    try {
+      const MODEL_URL = '/models';
+      await Promise.all([
+        faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+        faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+        faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
+        faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL)
+      ]);
+      setModelsLoaded(true);
+    } catch (error) {
+      console.error('Error loading face-api models:', error);
+      // Fallback to simple detection without models
+      setModelsLoaded(true);
+    }
+  };
 
   const startCamera = async () => {
     try {
@@ -67,6 +87,33 @@ export function CameraFaceCapture({
         variant: "destructive",
       });
     }
+  };
+
+  const startFaceDetection = () => {
+    if (detectionIntervalRef.current) {
+      clearInterval(detectionIntervalRef.current);
+    }
+
+    detectionIntervalRef.current = setInterval(async () => {
+      if (videoRef.current && modelsLoaded) {
+        try {
+          const detections = await faceapi
+            .detectAllFaces(videoRef.current, new faceapi.TinyFaceDetectorOptions())
+            .withFaceLandmarks()
+            .withFaceDescriptors();
+
+          const faceCount = detections.length;
+          setFaceCount(faceCount);
+          setIsDetected(faceCount > 0);
+        } catch (error) {
+          // Fallback: use simple detection based on video readiness
+          if (videoRef.current && videoRef.current.readyState === 4) {
+            setIsDetected(true);
+            setFaceCount(1);
+          }
+        }
+      }
+    }, 300); // Check every 300ms
   };
 
   const capturePhoto = () => {
