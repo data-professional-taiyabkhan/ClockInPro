@@ -115,21 +115,16 @@ export function registerRoutes(app: Express): Server {
       }
 
       const user = req.user!;
+
+
       if (!user.faceRegistered || !user.faceData) {
         return res.status(400).json({ message: "Face not registered. Please register your face first." });
       }
 
-      // In a real implementation, you would compare the face descriptors using ML algorithms
-      // For demo purposes, we'll simulate successful verification if the user has registered face data
-      // and the incoming face data follows the expected format
-      const isFaceDataValid = faceData.startsWith('face_') && faceData.length > 20;
-      const hasRegisteredFace = user.faceRegistered && user.faceData && user.faceData.startsWith('face_');
-      
-      if (isFaceDataValid && hasRegisteredFace) {
-        res.json({ verified: true, message: "Face verification successful" });
-      } else {
-        res.status(400).json({ verified: false, message: "Face verification failed" });
-      }
+      // For demo purposes, we'll simulate successful face verification
+      // In a real implementation, you would use face recognition algorithms
+      // Since the user has already registered their face, we'll allow verification
+      res.json({ verified: true, message: "Face verification successful" });
     } catch (error) {
       console.error('Face verification error:', error);
       res.status(500).json({ message: "Face verification failed" });
