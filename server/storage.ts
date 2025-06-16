@@ -15,11 +15,11 @@ export interface IStorage {
   updateAttendanceRecord(id: number, updates: Partial<AttendanceRecord>): Promise<AttendanceRecord>;
   getUserAttendanceRecords(userId: number, limit?: number): Promise<AttendanceRecord[]>;
   getTodayAttendanceRecord(userId: number, date: string): Promise<AttendanceRecord | undefined>;
-  sessionStore: session.SessionStore;
+  sessionStore: any;
 }
 
 export class DatabaseStorage implements IStorage {
-  sessionStore: session.SessionStore;
+  sessionStore: any;
 
   constructor() {
     this.sessionStore = new PostgresSessionStore({ 

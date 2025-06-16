@@ -5,10 +5,6 @@ import { storage } from "./storage";
 import { insertAttendanceRecordSchema } from "@shared/schema";
 import { format, differenceInMinutes } from "date-fns";
 
-function setupAuth(app: Express) {
-  // This will be handled by the blueprint
-}
-
 export function registerRoutes(app: Express): Server {
   setupAuth(app);
 
