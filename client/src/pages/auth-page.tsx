@@ -84,10 +84,12 @@ export default function AuthPage() {
 
   const onRegister = (data: InsertUser) => {
     setRegistrationData(data);
-    registerMutation.mutate(data, {
-      onSuccess: () => {
-        setShowFaceCapture(true);
-      }
+    // Don't use the global registerMutation, create a local one that shows face capture
+    const registerPromise = registerMutation.mutateAsync(data);
+    registerPromise.then(() => {
+      setShowFaceCapture(true);
+    }).catch((error) => {
+      console.error('Registration failed:', error);
     });
   };
 

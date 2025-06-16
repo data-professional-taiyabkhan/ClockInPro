@@ -1,13 +1,17 @@
 import { useAuth } from "@/hooks/use-auth";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Clock, LogOut, User, Calendar, TrendingUp } from "lucide-react";
+import { Clock, LogOut, User, Calendar, TrendingUp, Camera, AlertCircle } from "lucide-react";
 import { FaceAuthModal } from "@/components/face-auth-modal";
+import { CameraFaceCapture } from "@/components/camera-face-capture";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { format } from "date-fns";
+import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 
 interface AttendanceRecord {
   id: number;
@@ -27,7 +31,9 @@ export default function HomePage() {
   const [, setLocation] = useLocation();
   const [currentTime, setCurrentTime] = useState(new Date());
   const [showFaceAuth, setShowFaceAuth] = useState(false);
+  const [showFaceRegistration, setShowFaceRegistration] = useState(false);
   const [clockAction, setClockAction] = useState<'in' | 'out'>('in');
+  const { toast } = useToast();
 
   const { data: todayStatus, refetch: refetchToday } = useQuery<TodayStatus>({
     queryKey: ["/api/attendance/today"],
@@ -35,6 +41,29 @@ export default function HomePage() {
 
   const { data: attendanceRecords = [] } = useQuery<AttendanceRecord[]>({
     queryKey: ["/api/attendance"],
+  });
+
+  const faceRegistrationMutation = useMutation({
+    mutationFn: async (faceData: string) => {
+      const res = await apiRequest("POST", "/api/register-face", { faceData });
+      return await res.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Face Registered",
+        description: "Your face has been successfully registered for secure authentication.",
+      });
+      setShowFaceRegistration(false);
+      // Refresh user data to update face registration status
+      window.location.reload();
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Face Registration Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
   });
 
   useEffect(() => {
@@ -45,6 +74,17 @@ export default function HomePage() {
   }, []);
 
   const handleClockAction = (action: 'in' | 'out') => {
+    // Check if user has registered face first
+    if (!user?.faceRegistered) {
+      toast({
+        title: "Face Registration Required",
+        description: "Please register your face first to use face authentication.",
+        variant: "destructive",
+      });
+      setShowFaceRegistration(true);
+      return;
+    }
+    
     setClockAction(action);
     setShowFaceAuth(true);
   };
@@ -56,6 +96,10 @@ export default function HomePage() {
     } else {
       setLocation("/thank-you");
     }
+  };
+
+  const handleFaceRegistration = (faceData: string) => {
+    faceRegistrationMutation.mutate(faceData);
   };
 
   const isClockedIn = todayStatus?.isClockedIn || false;
@@ -90,6 +134,26 @@ export default function HomePage() {
       </header>
 
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Face Registration Alert */}
+        {!user?.faceRegistered && (
+          <Alert className="mb-6 border-orange-200 bg-orange-50">
+            <AlertCircle className="h-4 w-4 text-orange-600" />
+            <AlertDescription className="text-orange-800">
+              <div className="flex items-center justify-between">
+                <span>Face authentication not set up. Register your face to use secure clock in/out.</span>
+                <Button 
+                  size="sm" 
+                  onClick={() => setShowFaceRegistration(true)}
+                  className="ml-4 bg-orange-600 hover:bg-orange-700"
+                >
+                  <Camera className="w-4 h-4 mr-2" />
+                  Register Face
+                </Button>
+              </div>
+            </AlertDescription>
+          </Alert>
+        )}
+
         {/* Clock In/Out Section */}
         <Card className="mb-8">
           <CardContent className="pt-6">
@@ -258,6 +322,22 @@ export default function HomePage() {
         onSuccess={handleFaceAuthSuccess}
         action={clockAction}
       />
+
+      {/* Face Registration Modal */}
+      {showFaceRegistration && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-lg w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <CameraFaceCapture
+                onCapture={handleFaceRegistration}
+                onCancel={() => setShowFaceRegistration(false)}
+                title="Register Your Face"
+                description="Set up face authentication for secure and convenient clock in/out"
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
