@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Camera, Check, X, RotateCcw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import * as faceapi from 'face-api.js';
 
 interface CameraFaceCaptureProps {
   onCapture: (faceData: string) => void;
@@ -24,13 +25,15 @@ export function CameraFaceCapture({
   const [isCapturing, setIsCapturing] = useState(false);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [detectionStatus, setDetectionStatus] = useState('Initializing...');
+  const [modelsLoaded, setModelsLoaded] = useState(false);
+  const [faceDescriptor, setFaceDescriptor] = useState<Float32Array | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const detectionIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
-    startCamera();
+    loadModels();
     return () => {
       if (stream) {
         stream.getTracks().forEach(track => track.stop());
@@ -40,6 +43,25 @@ export function CameraFaceCapture({
       }
     };
   }, []);
+
+  const loadModels = async () => {
+    try {
+      setDetectionStatus('Loading face recognition models...');
+      await Promise.all([
+        faceapi.nets.tinyFaceDetector.loadFromUri('/models'),
+        faceapi.nets.faceLandmark68Net.loadFromUri('/models'),
+        faceapi.nets.faceRecognitionNet.loadFromUri('/models'),
+        faceapi.nets.faceExpressionNet.loadFromUri('/models'),
+      ]);
+      setModelsLoaded(true);
+      setDetectionStatus('Models loaded, starting camera...');
+      startCamera();
+    } catch (error) {
+      console.error('Error loading face detection models:', error);
+      setDetectionStatus('Using basic detection (models failed to load)');
+      startCamera();
+    }
+  };
 
   useEffect(() => {
     if (stream && videoRef.current) {
@@ -78,35 +100,64 @@ export function CameraFaceCapture({
 
     setDetectionStatus('Analyzing video feed...');
 
-    detectionIntervalRef.current = setInterval(() => {
+    detectionIntervalRef.current = setInterval(async () => {
       if (videoRef.current && canvasRef.current) {
         try {
           const video = videoRef.current;
-          const canvas = canvasRef.current;
-          const context = canvas.getContext('2d');
+          
+          if (video.readyState === 4) {
+            if (modelsLoaded) {
+              // Use face-api.js for accurate detection
+              const detections = await faceapi
+                .detectAllFaces(video, new faceapi.TinyFaceDetectorOptions())
+                .withFaceLandmarks()
+                .withFaceDescriptors();
 
-          if (context && video.readyState === 4) {
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            context.drawImage(video, 0, 0);
-
-            // Analyze the image data for face-like features
-            const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-            const hasFace = analyzeImageForFace(imageData);
-
-            if (hasFace) {
-              setIsDetected(true);
-              setDetectionStatus('Face detected!');
+              if (detections.length > 0) {
+                const detection = detections[0];
+                const confidence = detection.detection.score;
+                
+                if (confidence > 0.6) { // Higher confidence threshold
+                  setIsDetected(true);
+                  setFaceDescriptor(detection.descriptor);
+                  setDetectionStatus(`Face detected! (${Math.round(confidence * 100)}% confidence)`);
+                } else {
+                  setIsDetected(false);
+                  setDetectionStatus('Face quality too low - improve lighting');
+                }
+              } else {
+                setIsDetected(false);
+                setDetectionStatus('No face detected - position your face in the frame');
+              }
             } else {
-              setIsDetected(false);
-              setDetectionStatus('No face detected - position your face in the frame');
+              // Fallback to basic detection
+              const canvas = canvasRef.current;
+              const context = canvas.getContext('2d');
+
+              if (context) {
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                context.drawImage(video, 0, 0);
+
+                const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+                const hasFace = analyzeImageForFace(imageData);
+
+                if (hasFace) {
+                  setIsDetected(true);
+                  setDetectionStatus('Face detected! (basic mode)');
+                } else {
+                  setIsDetected(false);
+                  setDetectionStatus('No face detected - position your face in the frame');
+                }
+              }
             }
           }
         } catch (error) {
+          console.error('Face detection error:', error);
           setDetectionStatus('Detection error - please try again');
         }
       }
-    }, 500); // Check every 500ms
+    }, 300); // Check every 300ms for better responsiveness
   };
 
   const analyzeImageForFace = (imageData: ImageData): boolean => {
@@ -156,7 +207,7 @@ export function CameraFaceCapture({
     return skinRatio > 0.1 && avgBrightness > 50 && avgBrightness < 220;
   };
 
-  const capturePhoto = () => {
+  const capturePhoto = async () => {
     if (!videoRef.current || !canvasRef.current) return;
 
     setIsCapturing(true);
@@ -169,24 +220,91 @@ export function CameraFaceCapture({
       canvas.height = video.videoHeight;
       context.drawImage(video, 0, 0);
       
-      const imageData = canvas.toDataURL('image/jpeg', 0.8);
+      const imageData = canvas.toDataURL('image/jpeg', 0.9);
       setCapturedImage(imageData);
       
-      // Generate a simple face "descriptor" - in reality this would be complex facial recognition
-      const faceDescriptor = generateFaceDescriptor(imageData);
+      let faceDescriptorData;
+      
+      if (modelsLoaded && faceDescriptor) {
+        // Use the real face descriptor from face-api.js
+        faceDescriptorData = JSON.stringify(Array.from(faceDescriptor));
+      } else {
+        // Fallback to enhanced basic descriptor
+        faceDescriptorData = generateEnhancedFaceDescriptor(imageData, context, canvas);
+      }
       
       setTimeout(() => {
         setIsCapturing(false);
-        onCapture(faceDescriptor);
+        onCapture(faceDescriptorData);
       }, 1000);
     }
   };
 
-  const generateFaceDescriptor = (imageData: string): string => {
-    // This is a simplified version. In a real app, you'd use face-api.js or similar
-    // to extract actual facial features and create a descriptor
-    const hash = btoa(imageData.substring(0, 100));
-    return `face_${Date.now()}_${hash.substring(0, 20)}`;
+  const generateEnhancedFaceDescriptor = (imageData: string, context: CanvasRenderingContext2D, canvas: HTMLCanvasElement): string => {
+    // Enhanced face descriptor generation with more facial feature analysis
+    const imgData = context.getImageData(0, 0, canvas.width, canvas.height);
+    const data = imgData.data;
+    const width = canvas.width;
+    const height = canvas.height;
+    
+    // Analyze multiple facial regions
+    const features = {
+      eyeRegion: analyzeFaceRegion(data, width, height, 0.3, 0.25, 0.4, 0.15), // Eyes area
+      noseRegion: analyzeFaceRegion(data, width, height, 0.4, 0.4, 0.2, 0.2),  // Nose area
+      mouthRegion: analyzeFaceRegion(data, width, height, 0.35, 0.65, 0.3, 0.15), // Mouth area
+      overallBrightness: calculateAverageBrightness(data),
+      colorDistribution: analyzeColorDistribution(data),
+      timestamp: Date.now()
+    };
+    
+    return JSON.stringify(features);
+  };
+
+  const analyzeFaceRegion = (data: Uint8ClampedArray, width: number, height: number, 
+                           xRatio: number, yRatio: number, wRatio: number, hRatio: number) => {
+    const startX = Math.floor(width * xRatio);
+    const startY = Math.floor(height * yRatio);
+    const regionWidth = Math.floor(width * wRatio);
+    const regionHeight = Math.floor(height * hRatio);
+    
+    let totalR = 0, totalG = 0, totalB = 0, pixelCount = 0;
+    
+    for (let y = startY; y < startY + regionHeight && y < height; y++) {
+      for (let x = startX; x < startX + regionWidth && x < width; x++) {
+        const index = (y * width + x) * 4;
+        totalR += data[index];
+        totalG += data[index + 1];
+        totalB += data[index + 2];
+        pixelCount++;
+      }
+    }
+    
+    return {
+      avgR: Math.round(totalR / pixelCount),
+      avgG: Math.round(totalG / pixelCount),
+      avgB: Math.round(totalB / pixelCount),
+      brightness: Math.round((totalR + totalG + totalB) / (pixelCount * 3))
+    };
+  };
+
+  const calculateAverageBrightness = (data: Uint8ClampedArray): number => {
+    let total = 0;
+    for (let i = 0; i < data.length; i += 4) {
+      total += (data[i] + data[i + 1] + data[i + 2]) / 3;
+    }
+    return Math.round(total / (data.length / 4));
+  };
+
+  const analyzeColorDistribution = (data: Uint8ClampedArray) => {
+    const buckets = new Array(8).fill(0);
+    
+    for (let i = 0; i < data.length; i += 16) { // Sample every 4th pixel
+      const brightness = (data[i] + data[i + 1] + data[i + 2]) / 3;
+      const bucket = Math.floor(brightness / 32);
+      buckets[Math.min(bucket, 7)]++;
+    }
+    
+    return buckets;
   };
 
   const retakePhoto = () => {
@@ -227,7 +345,41 @@ export function CameraFaceCapture({
                 <RotateCcw className="w-4 h-4 mr-2" />
                 Retake
               </Button>
-              <Button onClick={() => onCapture(generateFaceDescriptor(capturedImage))} className="flex-1">
+              <Button onClick={async () => {
+                if (modelsLoaded && capturedImage) {
+                  // Re-analyze the captured image for final descriptor
+                  const img = new Image();
+                  img.onload = async () => {
+                    try {
+                      const detections = await faceapi
+                        .detectAllFaces(img, new faceapi.TinyFaceDetectorOptions())
+                        .withFaceLandmarks()
+                        .withFaceDescriptors();
+                      
+                      if (detections.length > 0) {
+                        const descriptor = JSON.stringify(Array.from(detections[0].descriptor));
+                        onCapture(descriptor);
+                      } else {
+                        const context = canvasRef.current?.getContext('2d');
+                        if (context && canvasRef.current) {
+                          onCapture(generateEnhancedFaceDescriptor(capturedImage, context, canvasRef.current));
+                        }
+                      }
+                    } catch (error) {
+                      const context = canvasRef.current?.getContext('2d');
+                      if (context && canvasRef.current) {
+                        onCapture(generateEnhancedFaceDescriptor(capturedImage, context, canvasRef.current));
+                      }
+                    }
+                  };
+                  img.src = capturedImage;
+                } else {
+                  const context = canvasRef.current?.getContext('2d');
+                  if (context && canvasRef.current && capturedImage) {
+                    onCapture(generateEnhancedFaceDescriptor(capturedImage, context, canvasRef.current));
+                  }
+                }
+              }} className="flex-1">
                 <Check className="w-4 h-4 mr-2" />
                 {isVerification ? "Verify" : "Register"}
               </Button>
