@@ -5,8 +5,74 @@ import { storage } from "./storage";
 import { insertAttendanceRecordSchema } from "@shared/schema";
 import { format, differenceInMinutes } from "date-fns";
 
+// Face matching utility functions
+function extractFaceCharacteristics(faceData: string): string {
+  // Extract the base64 portion from the face data string
+  const parts = faceData.split('_');
+  if (parts.length >= 3) {
+    return parts[2]; // The hash portion contains face characteristics
+  }
+  return faceData.substring(faceData.length - 20); // Fallback to last 20 chars
+}
+
+function calculateFaceSimilarity(stored: string, captured: string): number {
+  // Simple similarity calculation based on string matching
+  // In a real implementation, this would use ML algorithms to compare facial features
+  
+  if (stored === captured) return 1.0; // Perfect match
+  
+  // Calculate character-level similarity
+  const minLength = Math.min(stored.length, captured.length);
+  const maxLength = Math.max(stored.length, captured.length);
+  
+  if (maxLength === 0) return 0;
+  
+  let matches = 0;
+  for (let i = 0; i < minLength; i++) {
+    if (stored[i] === captured[i]) {
+      matches++;
+    }
+  }
+  
+  // Account for length difference and calculate similarity
+  const baseSimilarity = matches / maxLength;
+  const lengthPenalty = (maxLength - minLength) / maxLength;
+  
+  return Math.max(0, baseSimilarity - lengthPenalty);
+}
+
 export function registerRoutes(app: Express): Server {
   setupAuth(app);
+
+  // Enhanced face matching that considers user-specific characteristics
+  function matchUserFace(storedFaceData: string, capturedFaceData: string, userId: number): boolean {
+    try {
+      // Extract meaningful characteristics from both face data strings
+      const storedHash = extractFaceCharacteristics(storedFaceData);
+      const capturedHash = extractFaceCharacteristics(capturedFaceData);
+      
+      // Calculate similarity score
+      const similarity = calculateFaceSimilarity(storedHash, capturedHash);
+      
+      // Validate timestamp to ensure fresh capture
+      const capturedParts = capturedFaceData.split('_');
+      const isValidFormat = capturedParts.length >= 2;
+      const capturedTimestamp = isValidFormat ? parseInt(capturedParts[1]) : 0;
+      const isRecentCapture = isValidFormat && (Date.now() - capturedTimestamp) < 300000; // Within 5 minutes
+      
+      // Check if stored data contains user-specific elements
+      const storedParts = storedFaceData.split('_');
+      const hasValidStoredFormat = storedParts.length >= 3;
+      
+      console.log(`Face match for user ${userId}: similarity=${similarity.toFixed(3)}, recent=${isRecentCapture}, validFormat=${hasValidStoredFormat}`);
+      
+      // Must have high similarity, recent capture, and valid format
+      return similarity >= 0.8 && isRecentCapture && hasValidStoredFormat;
+    } catch (error) {
+      console.error('Face matching error:', error);
+      return false;
+    }
+  }
 
   // Clock in endpoint
   app.post("/api/clock-in", async (req, res) => {
@@ -121,10 +187,14 @@ export function registerRoutes(app: Express): Server {
         return res.status(400).json({ message: "Face not registered. Please register your face first." });
       }
 
-      // For demo purposes, we'll simulate successful face verification
-      // In a real implementation, you would use face recognition algorithms
-      // Since the user has already registered their face, we'll allow verification
-      res.json({ verified: true, message: "Face verification successful" });
+      // Use enhanced face matching that validates user-specific characteristics
+      const isValidMatch = matchUserFace(user.faceData, faceData, user.id);
+      
+      if (isValidMatch) {
+        res.json({ verified: true, message: "Face verification successful" });
+      } else {
+        res.status(400).json({ verified: false, message: "Face verification failed - face does not match registered user" });
+      }
     } catch (error) {
       console.error('Face verification error:', error);
       res.status(500).json({ message: "Face verification failed" });
