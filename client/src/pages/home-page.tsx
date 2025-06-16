@@ -1,0 +1,263 @@
+import { useAuth } from "@/hooks/use-auth";
+import { useQuery } from "@tanstack/react-query";
+import { useLocation } from "wouter";
+import { useState, useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Clock, LogOut, User, Calendar, TrendingUp } from "lucide-react";
+import { FaceAuthModal } from "@/components/face-auth-modal";
+import { format } from "date-fns";
+
+interface AttendanceRecord {
+  id: number;
+  clockInTime: string;
+  clockOutTime?: string;
+  date: string;
+  totalHours?: string;
+}
+
+interface TodayStatus {
+  record?: AttendanceRecord;
+  isClockedIn: boolean;
+}
+
+export default function HomePage() {
+  const { user, logoutMutation } = useAuth();
+  const [, setLocation] = useLocation();
+  const [currentTime, setCurrentTime] = useState(new Date());
+  const [showFaceAuth, setShowFaceAuth] = useState(false);
+  const [clockAction, setClockAction] = useState<'in' | 'out'>('in');
+
+  const { data: todayStatus, refetch: refetchToday } = useQuery<TodayStatus>({
+    queryKey: ["/api/attendance/today"],
+  });
+
+  const { data: attendanceRecords = [] } = useQuery<AttendanceRecord[]>({
+    queryKey: ["/api/attendance"],
+  });
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const handleClockAction = (action: 'in' | 'out') => {
+    setClockAction(action);
+    setShowFaceAuth(true);
+  };
+
+  const handleFaceAuthSuccess = () => {
+    setShowFaceAuth(false);
+    if (clockAction === 'in') {
+      setLocation("/welcome");
+    } else {
+      setLocation("/thank-you");
+    }
+  };
+
+  const isClockedIn = todayStatus?.isClockedIn || false;
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <header className="bg-white shadow-sm border-b">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center py-4">
+            <div className="flex items-center">
+              <div className="h-8 w-8 bg-primary rounded-full flex items-center justify-center mr-3">
+                <Clock className="h-5 w-5 text-white" />
+              </div>
+              <h1 className="text-xl font-semibold text-gray-800">ClockIn Pro</h1>
+            </div>
+            <div className="flex items-center space-x-4">
+              <span className="text-sm text-gray-600">
+                {user?.firstName} {user?.lastName}
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => logoutMutation.mutate()}
+                disabled={logoutMutation.isPending}
+              >
+                <LogOut className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Clock In/Out Section */}
+        <Card className="mb-8">
+          <CardContent className="pt-6">
+            <div className="text-center">
+              <div className="mb-6">
+                <div className="text-3xl font-bold text-gray-800 mb-2">
+                  {currentTime.toLocaleTimeString('en-US', { 
+                    hour: 'numeric', 
+                    minute: '2-digit',
+                    hour12: true 
+                  })}
+                </div>
+                <div className="text-gray-600">
+                  {format(currentTime, 'EEEE, MMMM d, yyyy')}
+                </div>
+              </div>
+
+              {/* Status Display */}
+              <div className="mb-8">
+                <Badge 
+                  variant={isClockedIn ? "default" : "secondary"} 
+                  className={`mb-4 px-4 py-2 ${
+                    isClockedIn 
+                      ? "bg-green-100 text-green-800 hover:bg-green-100" 
+                      : "bg-red-100 text-red-800 hover:bg-red-100"
+                  }`}
+                >
+                  <div className={`w-2 h-2 rounded-full mr-2 ${
+                    isClockedIn ? "bg-green-500" : "bg-red-500"
+                  }`} />
+                  {isClockedIn ? "Clocked In" : "Not Clocked In"}
+                </Badge>
+                <div className="text-gray-600 text-sm">
+                  {todayStatus?.record ? (
+                    isClockedIn ? (
+                      `Clocked in at ${format(new Date(todayStatus.record.clockInTime), 'h:mm a')}`
+                    ) : (
+                      `Last clocked out at ${format(new Date(todayStatus.record.clockOutTime!), 'h:mm a')}`
+                    )
+                  ) : (
+                    "No activity today"
+                  )}
+                </div>
+              </div>
+
+              {/* Clock In/Out Button */}
+              <Button 
+                onClick={() => handleClockAction(isClockedIn ? 'out' : 'in')}
+                size="lg"
+                className="w-full max-w-sm mx-auto h-16 text-lg font-semibold mb-6 shadow-lg hover:shadow-xl transition-all duration-200"
+              >
+                <User className="mr-3 h-6 w-6" />
+                {isClockedIn ? "Clock Out with Face ID" : "Clock In with Face ID"}
+              </Button>
+
+              <p className="text-sm text-gray-500">Use Face ID for secure and quick clock in/out</p>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Today's Summary */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center">
+                <div className="p-2 bg-blue-100 rounded-lg">
+                  <Clock className="h-5 w-5 text-blue-600" />
+                </div>
+                <div className="ml-4">
+                  <p className="text-sm font-medium text-gray-600">Hours Today</p>
+                  <p className="text-2xl font-semibold text-gray-900">
+                    {todayStatus?.record?.totalHours || "0h 0m"}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center">
+                <div className="p-2 bg-green-100 rounded-lg">
+                  <Calendar className="h-5 w-5 text-green-600" />
+                </div>
+                <div className="ml-4">
+                  <p className="text-sm font-medium text-gray-600">This Week</p>
+                  <p className="text-2xl font-semibold text-gray-900">32h 15m</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center">
+                <div className="p-2 bg-purple-100 rounded-lg">
+                  <TrendingUp className="h-5 w-5 text-purple-600" />
+                </div>
+                <div className="ml-4">
+                  <p className="text-sm font-medium text-gray-600">This Month</p>
+                  <p className="text-2xl font-semibold text-gray-900">128h 45m</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Recent Activity */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Recent Activity</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {attendanceRecords.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                No attendance records yet. Clock in to get started!
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {attendanceRecords.map((record) => (
+                  <div key={record.id} className="flex items-center justify-between py-3 border-b border-gray-100 last:border-b-0">
+                    <div className="flex items-center">
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center mr-3 ${
+                        record.clockOutTime 
+                          ? "bg-red-100" 
+                          : "bg-green-100"
+                      }`}>
+                        <LogOut className={`h-4 w-4 ${
+                          record.clockOutTime 
+                            ? "text-red-600" 
+                            : "text-green-600"
+                        }`} />
+                      </div>
+                      <div>
+                        <p className="font-medium text-gray-800">
+                          {record.clockOutTime ? "Clocked Out" : "Clocked In"}
+                        </p>
+                        <p className="text-sm text-gray-600">
+                          {format(new Date(record.date), 'EEEE, MMMM d, yyyy')}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-medium text-gray-800">
+                        {record.clockOutTime 
+                          ? format(new Date(record.clockOutTime), 'h:mm a')
+                          : format(new Date(record.clockInTime), 'h:mm a')
+                        }
+                      </p>
+                      <p className="text-sm text-gray-600">
+                        {record.totalHours || "In progress"}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Face Authentication Modal */}
+      <FaceAuthModal
+        isOpen={showFaceAuth}
+        onClose={() => setShowFaceAuth(false)}
+        onSuccess={handleFaceAuthSuccess}
+        action={clockAction}
+      />
+    </div>
+  );
+}
