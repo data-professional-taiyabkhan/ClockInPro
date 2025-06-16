@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { User, Camera } from "lucide-react";
 import { CameraFaceCapture } from "./camera-face-capture";
@@ -64,6 +64,9 @@ export function FaceAuthModal({ isOpen, onClose, onSuccess, action }: FaceAuthMo
           <DialogTitle>
             {action === 'in' ? 'Clock In' : 'Clock Out'} - Face Verification
           </DialogTitle>
+          <DialogDescription>
+            Use face authentication to securely {action === 'in' ? 'clock in' : 'clock out'} for your attendance.
+          </DialogDescription>
         </DialogHeader>
         {showCamera ? (
           <CameraFaceCapture
