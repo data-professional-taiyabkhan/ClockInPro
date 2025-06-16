@@ -82,6 +82,58 @@ export function registerRoutes(app: Express): Server {
     });
   });
 
+  // Register face data
+  app.post("/api/register-face", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+
+    try {
+      const { faceData } = req.body;
+      if (!faceData) {
+        return res.status(400).json({ message: "Face data is required" });
+      }
+
+      const updatedUser = await storage.updateUserFaceData(req.user!.id, faceData);
+      res.json({ message: "Face registered successfully", user: updatedUser });
+    } catch (error) {
+      console.error('Face registration error:', error);
+      res.status(500).json({ message: "Face registration failed" });
+    }
+  });
+
+  // Verify face for clock in/out
+  app.post("/api/verify-face", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+
+    try {
+      const { faceData } = req.body;
+      if (!faceData) {
+        return res.status(400).json({ message: "Face data is required" });
+      }
+
+      const user = req.user!;
+      if (!user.faceRegistered || !user.faceData) {
+        return res.status(400).json({ message: "Face not registered. Please register your face first." });
+      }
+
+      // In a real implementation, you would compare the face descriptors
+      // For now, we'll simulate verification with a simple comparison
+      const isMatch = user.faceData === faceData;
+      
+      if (isMatch) {
+        res.json({ verified: true, message: "Face verification successful" });
+      } else {
+        res.status(400).json({ verified: false, message: "Face verification failed" });
+      }
+    } catch (error) {
+      console.error('Face verification error:', error);
+      res.status(500).json({ message: "Face verification failed" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

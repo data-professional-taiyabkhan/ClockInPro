@@ -10,6 +10,8 @@ export const users = pgTable("users", {
   email: text("email").notNull().unique(),
   organization: text("organization").notNull(),
   password: text("password").notNull(),
+  faceData: text("face_data"), // Store face encoding/descriptor
+  faceRegistered: boolean("face_registered").default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

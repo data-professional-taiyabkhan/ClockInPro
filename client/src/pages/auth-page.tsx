@@ -12,6 +12,10 @@ import { insertUserSchema, type InsertUser } from "@shared/schema";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { z } from "zod";
 import { Clock, Users, Shield, TrendingUp } from "lucide-react";
+import { CameraFaceCapture } from "@/components/camera-face-capture";
+import { useMutation } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 
 const loginSchema = z.object({
   email: z.string().email("Invalid email address"),
@@ -24,6 +28,9 @@ export default function AuthPage() {
   const { user, loginMutation, registerMutation } = useAuth();
   const [, setLocation] = useLocation();
   const [activeTab, setActiveTab] = useState("login");
+  const [showFaceCapture, setShowFaceCapture] = useState(false);
+  const [registrationData, setRegistrationData] = useState<InsertUser | null>(null);
+  const { toast } = useToast();
 
   useEffect(() => {
     if (user) {
@@ -50,12 +57,47 @@ export default function AuthPage() {
     },
   });
 
+  const faceRegistrationMutation = useMutation({
+    mutationFn: async (faceData: string) => {
+      const res = await apiRequest("POST", "/api/register-face", { faceData });
+      return await res.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Face Registered",
+        description: "Your face has been successfully registered for secure authentication.",
+      });
+      setLocation("/");
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Face Registration Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const onLogin = (data: LoginData) => {
     loginMutation.mutate(data);
   };
 
   const onRegister = (data: InsertUser) => {
-    registerMutation.mutate(data);
+    setRegistrationData(data);
+    registerMutation.mutate(data, {
+      onSuccess: () => {
+        setShowFaceCapture(true);
+      }
+    });
+  };
+
+  const handleFaceCapture = (faceData: string) => {
+    faceRegistrationMutation.mutate(faceData);
+  };
+
+  const handleCancelFaceCapture = () => {
+    setShowFaceCapture(false);
+    setRegistrationData(null);
   };
 
   if (user) {
