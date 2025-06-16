@@ -108,7 +108,7 @@ export default function AuthPage() {
 
   if (showFaceCapture) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4 bg-gray-50">
+      <div className="min-h-screen flex items-center justify-center p-3 sm:p-4 bg-gray-50">
         <div className="max-w-lg w-full">
           <CameraFaceCapture
             onCapture={handleFaceCapture}
@@ -122,16 +122,16 @@ export default function AuthPage() {
   }
 
   return (
-    <div className="min-h-screen flex">
+    <div className="min-h-screen flex flex-col lg:flex-row">
       {/* Left side - Auth forms */}
-      <div className="flex-1 flex items-center justify-center p-8 bg-white">
+      <div className="flex-1 flex items-center justify-center p-4 sm:p-8 bg-white">
         <div className="w-full max-w-md">
-          <div className="text-center mb-8">
-            <div className="mx-auto h-16 w-16 bg-primary rounded-full flex items-center justify-center mb-4">
-              <Clock className="h-8 w-8 text-white" />
+          <div className="text-center mb-6 sm:mb-8">
+            <div className="mx-auto h-12 w-12 sm:h-16 sm:w-16 bg-primary rounded-full flex items-center justify-center mb-3 sm:mb-4">
+              <Clock className="h-6 w-6 sm:h-8 sm:w-8 text-white" />
             </div>
-            <h1 className="text-3xl font-bold text-gray-900">ClockIn Pro</h1>
-            <p className="text-gray-600 mt-2">Professional time tracking made simple</p>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">ClockIn Pro</h1>
+            <p className="text-gray-600 mt-2 text-sm sm:text-base">Professional time tracking made simple</p>
           </div>
 
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -201,7 +201,7 @@ export default function AuthPage() {
                 <CardContent>
                   <Form {...registerForm}>
                     <form onSubmit={registerForm.handleSubmit(onRegister)} className="space-y-4">
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <FormField
                           control={registerForm.control}
                           name="firstName"
@@ -289,35 +289,35 @@ export default function AuthPage() {
       </div>
 
       {/* Right side - Hero section */}
-      <div className="flex-1 bg-gradient-to-br from-primary/10 to-primary/5 flex items-center justify-center p-8">
+      <div className="flex-1 bg-gradient-to-br from-primary/10 to-primary/5 flex items-center justify-center p-4 sm:p-8 lg:block hidden lg:flex">
         <div className="max-w-md text-center">
-          <h2 className="text-3xl font-bold text-gray-900 mb-6">
+          <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-4 sm:mb-6">
             Track Time with Precision
           </h2>
-          <p className="text-gray-600 mb-8 text-lg">
+          <p className="text-gray-600 mb-6 sm:mb-8 text-base sm:text-lg">
             Modern employee time tracking with face authentication, real-time monitoring, and comprehensive reporting.
           </p>
           
-          <div className="grid grid-cols-2 gap-4 mb-8">
-            <div className="bg-white rounded-lg p-4 shadow-sm">
-              <Users className="h-8 w-8 text-primary mx-auto mb-2" />
-              <p className="text-sm font-medium text-gray-900">Team Management</p>
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 mb-6 sm:mb-8">
+            <div className="bg-white rounded-lg p-3 sm:p-4 shadow-sm">
+              <Users className="h-6 w-6 sm:h-8 sm:w-8 text-primary mx-auto mb-2" />
+              <p className="text-xs sm:text-sm font-medium text-gray-900">Team Management</p>
             </div>
-            <div className="bg-white rounded-lg p-4 shadow-sm">
-              <Shield className="h-8 w-8 text-green-600 mx-auto mb-2" />
-              <p className="text-sm font-medium text-gray-900">Secure Face Auth</p>
+            <div className="bg-white rounded-lg p-3 sm:p-4 shadow-sm">
+              <Shield className="h-6 w-6 sm:h-8 sm:w-8 text-green-600 mx-auto mb-2" />
+              <p className="text-xs sm:text-sm font-medium text-gray-900">Secure Face Auth</p>
             </div>
-            <div className="bg-white rounded-lg p-4 shadow-sm">
-              <Clock className="h-8 w-8 text-blue-600 mx-auto mb-2" />
-              <p className="text-sm font-medium text-gray-900">Real-time Tracking</p>
+            <div className="bg-white rounded-lg p-3 sm:p-4 shadow-sm">
+              <Clock className="h-6 w-6 sm:h-8 sm:w-8 text-blue-600 mx-auto mb-2" />
+              <p className="text-xs sm:text-sm font-medium text-gray-900">Real-time Tracking</p>
             </div>
-            <div className="bg-white rounded-lg p-4 shadow-sm">
-              <TrendingUp className="h-8 w-8 text-purple-600 mx-auto mb-2" />
-              <p className="text-sm font-medium text-gray-900">Smart Analytics</p>
+            <div className="bg-white rounded-lg p-3 sm:p-4 shadow-sm">
+              <TrendingUp className="h-6 w-6 sm:h-8 sm:w-8 text-purple-600 mx-auto mb-2" />
+              <p className="text-xs sm:text-sm font-medium text-gray-900">Smart Analytics</p>
             </div>
           </div>
           
-          <div className="text-sm text-gray-500">
+          <div className="text-xs sm:text-sm text-gray-500">
             Trusted by thousands of companies worldwide
           </div>
         </div>

@@ -108,17 +108,20 @@ export default function HomePage() {
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <header className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-4">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center py-3 sm:py-4">
             <div className="flex items-center">
-              <div className="h-8 w-8 bg-primary rounded-full flex items-center justify-center mr-3">
-                <Clock className="h-5 w-5 text-white" />
+              <div className="h-7 w-7 sm:h-8 sm:w-8 bg-primary rounded-full flex items-center justify-center mr-2 sm:mr-3">
+                <Clock className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
               </div>
-              <h1 className="text-xl font-semibold text-gray-800">ClockIn Pro</h1>
+              <h1 className="text-lg sm:text-xl font-semibold text-gray-800">ClockIn Pro</h1>
             </div>
-            <div className="flex items-center space-x-4">
-              <span className="text-sm text-gray-600">
+            <div className="flex items-center space-x-2 sm:space-x-4">
+              <span className="text-xs sm:text-sm text-gray-600 hidden sm:inline">
                 {user?.firstName} {user?.lastName}
+              </span>
+              <span className="text-xs sm:text-sm text-gray-600 sm:hidden">
+                {user?.firstName}
               </span>
               <Button
                 variant="ghost"
@@ -133,18 +136,18 @@ export default function HomePage() {
         </div>
       </header>
 
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-4xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8">
         {/* Face Registration Alert */}
         {!user?.faceRegistered && (
-          <Alert className="mb-6 border-orange-200 bg-orange-50">
+          <Alert className="mb-4 sm:mb-6 border-orange-200 bg-orange-50">
             <AlertCircle className="h-4 w-4 text-orange-600" />
             <AlertDescription className="text-orange-800">
-              <div className="flex items-center justify-between">
-                <span>Face authentication not set up. Register your face to use secure clock in/out.</span>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-3 sm:space-y-0">
+                <span className="text-sm sm:text-base">Face authentication not set up. Register your face to use secure clock in/out.</span>
                 <Button 
                   size="sm" 
                   onClick={() => setShowFaceRegistration(true)}
-                  className="ml-4 bg-orange-600 hover:bg-orange-700"
+                  className="sm:ml-4 bg-orange-600 hover:bg-orange-700 w-full sm:w-auto"
                 >
                   <Camera className="w-4 h-4 mr-2" />
                   Register Face
@@ -155,27 +158,27 @@ export default function HomePage() {
         )}
 
         {/* Clock In/Out Section */}
-        <Card className="mb-8">
-          <CardContent className="pt-6">
+        <Card className="mb-6 sm:mb-8">
+          <CardContent className="pt-4 sm:pt-6 px-4 sm:px-6">
             <div className="text-center">
-              <div className="mb-6">
-                <div className="text-3xl font-bold text-gray-800 mb-2">
+              <div className="mb-4 sm:mb-6">
+                <div className="text-2xl sm:text-3xl font-bold text-gray-800 mb-2">
                   {currentTime.toLocaleTimeString('en-US', { 
                     hour: 'numeric', 
                     minute: '2-digit',
                     hour12: true 
                   })}
                 </div>
-                <div className="text-gray-600">
+                <div className="text-sm sm:text-base text-gray-600">
                   {format(currentTime, 'EEEE, MMMM d, yyyy')}
                 </div>
               </div>
 
               {/* Status Display */}
-              <div className="mb-8">
+              <div className="mb-6 sm:mb-8">
                 <Badge 
                   variant={isClockedIn ? "default" : "secondary"} 
-                  className={`mb-4 px-4 py-2 ${
+                  className={`mb-3 sm:mb-4 px-3 sm:px-4 py-2 text-sm ${
                     isClockedIn 
                       ? "bg-green-100 text-green-800 hover:bg-green-100" 
                       : "bg-red-100 text-red-800 hover:bg-red-100"
@@ -186,7 +189,7 @@ export default function HomePage() {
                   }`} />
                   {isClockedIn ? "Clocked In" : "Not Clocked In"}
                 </Badge>
-                <div className="text-gray-600 text-sm">
+                <div className="text-gray-600 text-xs sm:text-sm">
                   {todayStatus?.record ? (
                     isClockedIn ? (
                       `Clocked in at ${format(new Date(todayStatus.record.clockInTime), 'h:mm a')}`
@@ -203,28 +206,33 @@ export default function HomePage() {
               <Button 
                 onClick={() => handleClockAction(isClockedIn ? 'out' : 'in')}
                 size="lg"
-                className="w-full max-w-sm mx-auto h-16 text-lg font-semibold mb-6 shadow-lg hover:shadow-xl transition-all duration-200"
+                className="w-full max-w-sm mx-auto h-14 sm:h-16 text-base sm:text-lg font-semibold mb-4 sm:mb-6 shadow-lg hover:shadow-xl transition-all duration-200"
               >
-                <User className="mr-3 h-6 w-6" />
-                {isClockedIn ? "Clock Out with Face ID" : "Clock In with Face ID"}
+                <User className="mr-2 sm:mr-3 h-5 w-5 sm:h-6 sm:w-6" />
+                <span className="hidden sm:inline">
+                  {isClockedIn ? "Clock Out with Face ID" : "Clock In with Face ID"}
+                </span>
+                <span className="sm:hidden">
+                  {isClockedIn ? "Clock Out" : "Clock In"}
+                </span>
               </Button>
 
-              <p className="text-sm text-gray-500">Use Face ID for secure and quick clock in/out</p>
+              <p className="text-xs sm:text-sm text-gray-500">Use Face ID for secure and quick clock in/out</p>
             </div>
           </CardContent>
         </Card>
 
         {/* Today's Summary */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 mb-6 sm:mb-8">
           <Card>
-            <CardContent className="pt-6">
+            <CardContent className="pt-4 sm:pt-6 px-4 sm:px-6">
               <div className="flex items-center">
-                <div className="p-2 bg-blue-100 rounded-lg">
-                  <Clock className="h-5 w-5 text-blue-600" />
+                <div className="p-2 bg-blue-100 rounded-lg flex-shrink-0">
+                  <Clock className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
                 </div>
-                <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">Hours Today</p>
-                  <p className="text-2xl font-semibold text-gray-900">
+                <div className="ml-3 sm:ml-4 min-w-0">
+                  <p className="text-xs sm:text-sm font-medium text-gray-600">Hours Today</p>
+                  <p className="text-lg sm:text-2xl font-semibold text-gray-900 truncate">
                     {todayStatus?.record?.totalHours || "0h 0m"}
                   </p>
                 </div>
@@ -233,28 +241,28 @@ export default function HomePage() {
           </Card>
 
           <Card>
-            <CardContent className="pt-6">
+            <CardContent className="pt-4 sm:pt-6 px-4 sm:px-6">
               <div className="flex items-center">
-                <div className="p-2 bg-green-100 rounded-lg">
-                  <Calendar className="h-5 w-5 text-green-600" />
+                <div className="p-2 bg-green-100 rounded-lg flex-shrink-0">
+                  <Calendar className="h-4 w-4 sm:h-5 sm:w-5 text-green-600" />
                 </div>
-                <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">This Week</p>
-                  <p className="text-2xl font-semibold text-gray-900">32h 15m</p>
+                <div className="ml-3 sm:ml-4 min-w-0">
+                  <p className="text-xs sm:text-sm font-medium text-gray-600">This Week</p>
+                  <p className="text-lg sm:text-2xl font-semibold text-gray-900 truncate">32h 15m</p>
                 </div>
               </div>
             </CardContent>
           </Card>
 
           <Card>
-            <CardContent className="pt-6">
+            <CardContent className="pt-4 sm:pt-6 px-4 sm:px-6">
               <div className="flex items-center">
-                <div className="p-2 bg-purple-100 rounded-lg">
-                  <TrendingUp className="h-5 w-5 text-purple-600" />
+                <div className="p-2 bg-purple-100 rounded-lg flex-shrink-0">
+                  <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5 text-purple-600" />
                 </div>
-                <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">This Month</p>
-                  <p className="text-2xl font-semibold text-gray-900">128h 45m</p>
+                <div className="ml-3 sm:ml-4 min-w-0">
+                  <p className="text-xs sm:text-sm font-medium text-gray-600">This Month</p>
+                  <p className="text-lg sm:text-2xl font-semibold text-gray-900 truncate">128h 45m</p>
                 </div>
               </div>
             </CardContent>
@@ -263,47 +271,47 @@ export default function HomePage() {
 
         {/* Recent Activity */}
         <Card>
-          <CardHeader>
-            <CardTitle>Recent Activity</CardTitle>
+          <CardHeader className="px-4 sm:px-6">
+            <CardTitle className="text-lg sm:text-xl">Recent Activity</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="px-4 sm:px-6">
             {attendanceRecords.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
-                No attendance records yet. Clock in to get started!
+              <div className="text-center py-6 sm:py-8 text-gray-500">
+                <div className="text-sm sm:text-base">No attendance records yet. Clock in to get started!</div>
               </div>
             ) : (
-              <div className="space-y-4">
+              <div className="space-y-3 sm:space-y-4">
                 {attendanceRecords.map((record) => (
                   <div key={record.id} className="flex items-center justify-between py-3 border-b border-gray-100 last:border-b-0">
-                    <div className="flex items-center">
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center mr-3 ${
+                    <div className="flex items-center min-w-0 flex-1">
+                      <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center mr-3 flex-shrink-0 ${
                         record.clockOutTime 
                           ? "bg-red-100" 
                           : "bg-green-100"
                       }`}>
-                        <LogOut className={`h-4 w-4 ${
+                        <LogOut className={`h-3 w-3 sm:h-4 sm:w-4 ${
                           record.clockOutTime 
                             ? "text-red-600" 
                             : "text-green-600"
                         }`} />
                       </div>
-                      <div>
-                        <p className="font-medium text-gray-800">
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium text-gray-800 text-sm sm:text-base truncate">
                           {record.clockOutTime ? "Clocked Out" : "Clocked In"}
                         </p>
-                        <p className="text-sm text-gray-600">
-                          {format(new Date(record.date), 'EEEE, MMMM d, yyyy')}
+                        <p className="text-xs sm:text-sm text-gray-600 truncate">
+                          {format(new Date(record.date), 'MMM d, yyyy')}
                         </p>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <p className="font-medium text-gray-800">
+                    <div className="text-right ml-4 flex-shrink-0">
+                      <p className="font-medium text-gray-800 text-sm sm:text-base">
                         {record.clockOutTime 
                           ? format(new Date(record.clockOutTime), 'h:mm a')
                           : format(new Date(record.clockInTime), 'h:mm a')
                         }
                       </p>
-                      <p className="text-sm text-gray-600">
+                      <p className="text-xs sm:text-sm text-gray-600">
                         {record.totalHours || "In progress"}
                       </p>
                     </div>
@@ -325,9 +333,9 @@ export default function HomePage() {
 
       {/* Face Registration Modal */}
       {showFaceRegistration && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-lg w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-3 sm:p-4 z-50">
+          <div className="bg-white rounded-lg max-w-lg w-full max-h-[95vh] sm:max-h-[90vh] overflow-y-auto">
+            <div className="p-4 sm:p-6">
               <CameraFaceCapture
                 onCapture={handleFaceRegistration}
                 onCancel={() => setShowFaceRegistration(false)}
