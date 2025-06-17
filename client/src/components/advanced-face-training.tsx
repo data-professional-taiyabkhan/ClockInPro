@@ -685,6 +685,12 @@ export function AdvancedFaceTraining({ onComplete, onCancel }: AdvancedFaceTrain
     let skinPixels = 0;
     let totalSkinX = 0;
     let totalSkinY = 0;
+    
+    // Analyze face regions to better detect orientation
+    let upperFacePixels = 0;
+    let lowerFacePixels = 0;
+    let leftFacePixels = 0;
+    let rightFacePixels = 0;
 
     for (let x = 0; x < width; x++) {
       for (let y = 0; y < height; y++) {
@@ -693,15 +699,22 @@ export function AdvancedFaceTraining({ onComplete, onCancel }: AdvancedFaceTrain
         const g = data[i + 1];
         const b = data[i + 2];
 
-        // Skin tone detection
-        const isSkinTone = r > 95 && g > 40 && b > 20 && 
-                          Math.max(r, g, b) - Math.min(r, g, b) > 15 &&
-                          Math.abs(r - g) > 15 && r > g && r > b;
+        // Enhanced skin tone detection
+        const isSkinTone = r > 85 && g > 35 && b > 20 && 
+                          Math.max(r, g, b) - Math.min(r, g, b) > 10 &&
+                          Math.abs(r - g) > 10 && r > g && r > b;
 
         if (isSkinTone) {
           skinPixels++;
           totalSkinX += x;
           totalSkinY += y;
+          
+          // Track face region distribution
+          if (y < centerY) upperFacePixels++;
+          else lowerFacePixels++;
+          
+          if (x < centerX) leftFacePixels++;
+          else rightFacePixels++;
         }
       }
     }
@@ -711,17 +724,21 @@ export function AdvancedFaceTraining({ onComplete, onCancel }: AdvancedFaceTrain
       faceY = totalSkinY / skinPixels;
     }
 
-    // Calculate face offset from center
-    const horizontalOffset = (faceX - centerX) / centerX; // -1 to 1
-    const verticalOffset = (faceY - centerY) / centerY; // -1 to 1
+    // Calculate face offset from center with enhanced sensitivity
+    const horizontalOffset = (faceX - centerX) / (centerX * 0.8); // More sensitive
+    const verticalOffset = (faceY - centerY) / (centerY * 0.8); // More sensitive
 
     // Estimate face size by skin pixel density
     const faceSize = skinPixels / (width * height);
+    
+    // Calculate face orientation bias
+    const verticalBias = (upperFacePixels - lowerFacePixels) / skinPixels;
+    const horizontalBias = (leftFacePixels - rightFacePixels) / skinPixels;
 
     return {
-      hasFace: skinPixels > 100,
-      horizontalOffset,
-      verticalOffset,
+      hasFace: skinPixels > 80, // More lenient threshold
+      horizontalOffset: horizontalOffset + horizontalBias * 0.3, // Include bias
+      verticalOffset: verticalOffset + verticalBias * 0.3, // Include bias
       faceSize,
       skinPixels
     };
@@ -760,12 +777,12 @@ export function AdvancedFaceTraining({ onComplete, onCancel }: AdvancedFaceTrain
         };
 
       case 'up':
-        const isUp = verticalOffset < -0.1;
-        const upConfidence = Math.max(0, Math.min(1, (-verticalOffset - 0.1) / 0.2));
+        const isUp = verticalOffset < -0.05; // More sensitive threshold
+        const upConfidence = Math.max(0, Math.min(1, (-verticalOffset + 0.05) / 0.15));
         return {
           isCorrectPose: isUp,
           confidence: upConfidence,
-          message: isUp ? 'Good! Head tilted up' : 'Tilt your head up more'
+          message: isUp ? 'Good! Head tilted up' : 'Tilt your head up slightly'
         };
 
       case 'down':
