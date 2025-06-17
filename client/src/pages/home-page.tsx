@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Clock, LogOut, User, Calendar, TrendingUp, Camera, AlertCircle } from "lucide-react";
 import { FaceAuthModal } from "@/components/face-auth-modal";
 import { CameraFaceCapture } from "@/components/camera-face-capture";
+import { AdvancedFaceTraining } from "@/components/advanced-face-training";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { format } from "date-fns";
 import { apiRequest } from "@/lib/queryClient";
@@ -32,6 +33,7 @@ export default function HomePage() {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [showFaceAuth, setShowFaceAuth] = useState(false);
   const [showFaceRegistration, setShowFaceRegistration] = useState(false);
+  const [useAdvancedTraining, setUseAdvancedTraining] = useState(true);
   const [clockAction, setClockAction] = useState<'in' | 'out'>('in');
   const { toast } = useToast();
 
@@ -364,16 +366,56 @@ export default function HomePage() {
 
       {/* Face Registration Modal */}
       {showFaceRegistration && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-3 sm:p-4 z-50">
-          <div className="bg-white rounded-lg max-w-lg w-full max-h-[95vh] sm:max-h-[90vh] overflow-y-auto">
-            <div className="p-4 sm:p-6">
-              <CameraFaceCapture
-                onCapture={handleFaceRegistration}
-                onCancel={() => setShowFaceRegistration(false)}
-                title="Register Your Face"
-                description="Set up face authentication for secure and convenient clock in/out"
-              />
-            </div>
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-3 sm:p-4 z-50 overflow-y-auto">
+          <div className="bg-white rounded-lg w-full max-w-4xl my-8">
+            {useAdvancedTraining ? (
+              <div className="p-6">
+                <div className="mb-6 text-center">
+                  <h2 className="text-2xl font-bold mb-2">Advanced Face Training</h2>
+                  <p className="text-gray-600">We'll capture your face from multiple angles for enhanced security and accuracy</p>
+                  <div className="mt-4 p-3 bg-blue-50 rounded-lg">
+                    <p className="text-sm text-blue-800">
+                      This process is similar to iOS Face ID - follow the instructions to train the system with different poses and distances
+                    </p>
+                  </div>
+                </div>
+                <AdvancedFaceTraining
+                  onComplete={(trainingData) => {
+                    handleFaceRegistration(trainingData);
+                    setShowFaceRegistration(false);
+                  }}
+                  onCancel={() => setShowFaceRegistration(false)}
+                />
+                <div className="mt-4 text-center">
+                  <button 
+                    onClick={() => setUseAdvancedTraining(false)}
+                    className="text-sm text-gray-500 underline"
+                  >
+                    Use simple registration instead
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="p-4 sm:p-6">
+                <CameraFaceCapture
+                  onCapture={(faceData) => {
+                    handleFaceRegistration(faceData);
+                    setShowFaceRegistration(false);
+                  }}
+                  onCancel={() => setShowFaceRegistration(false)}
+                  title="Register Your Face"
+                  description="Position your face in the camera view and take a clear photo"
+                />
+                <div className="mt-4 text-center">
+                  <button 
+                    onClick={() => setUseAdvancedTraining(true)}
+                    className="text-sm text-blue-600 underline"
+                  >
+                    Use advanced training instead
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

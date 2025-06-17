@@ -81,6 +81,50 @@ function calculateEuclideanSimilarity(descriptor1: number[], descriptor2: number
   return Math.max(0, Math.min(1, similarity));
 }
 
+function calculateAdvancedTrainingSimilarity(storedTraining: any, capturedFeatures: any): number {
+  // Extract the captured descriptor
+  let capturedDescriptor: number[];
+  
+  if (Array.isArray(capturedFeatures)) {
+    capturedDescriptor = capturedFeatures;
+  } else if (capturedFeatures.version === 2 && capturedFeatures.primaryDescriptor) {
+    capturedDescriptor = capturedFeatures.primaryDescriptor;
+  } else {
+    // Fallback for non-array captured data
+    return 0.3;
+  }
+  
+  if (!capturedDescriptor || capturedDescriptor.length === 0) {
+    return 0;
+  }
+  
+  // Calculate similarity against primary descriptor
+  const primarySimilarity = calculateEuclideanSimilarity(
+    storedTraining.primaryDescriptor, 
+    capturedDescriptor
+  );
+  
+  // Calculate similarity against each pose descriptor for best match
+  let bestPoseSimilarity = 0;
+  if (storedTraining.poseDescriptors && storedTraining.poseDescriptors.length > 0) {
+    for (const poseData of storedTraining.poseDescriptors) {
+      const poseSimilarity = calculateEuclideanSimilarity(
+        poseData.descriptor,
+        capturedDescriptor
+      );
+      bestPoseSimilarity = Math.max(bestPoseSimilarity, poseSimilarity);
+    }
+  }
+  
+  // Weighted combination: primary descriptor (60%) + best pose match (40%)
+  const combinedSimilarity = (primarySimilarity * 0.6) + (bestPoseSimilarity * 0.4);
+  
+  // Apply quality bonus for well-trained models
+  const qualityBonus = storedTraining.quality > 0.8 ? 0.05 : 0;
+  
+  return Math.min(1, combinedSimilarity + qualityBonus);
+}
+
 function calculateEnhancedFeatureSimilarity(stored: any, captured: any): number {
   let totalSimilarity = 0;
   
