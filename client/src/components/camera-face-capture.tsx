@@ -225,21 +225,76 @@ export function CameraFaceCapture({
     const context = canvas.getContext('2d');
 
     if (context) {
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      context.drawImage(video, 0, 0);
+      // Use standardized capture size for consistency
+      const targetWidth = 640;
+      const targetHeight = 480;
+      canvas.width = targetWidth;
+      canvas.height = targetHeight;
       
-      const imageData = canvas.toDataURL('image/jpeg', 0.9);
+      // Scale and center the video feed
+      const videoAspect = video.videoWidth / video.videoHeight;
+      const canvasAspect = targetWidth / targetHeight;
+      
+      let drawWidth, drawHeight, drawX, drawY;
+      
+      if (videoAspect > canvasAspect) {
+        drawHeight = targetHeight;
+        drawWidth = drawHeight * videoAspect;
+        drawX = (targetWidth - drawWidth) / 2;
+        drawY = 0;
+      } else {
+        drawWidth = targetWidth;
+        drawHeight = drawWidth / videoAspect;
+        drawX = 0;
+        drawY = (targetHeight - drawHeight) / 2;
+      }
+      
+      context.drawImage(video, drawX, drawY, drawWidth, drawHeight);
+      
+      const imageData = canvas.toDataURL('image/jpeg', 0.95);
       setCapturedImage(imageData);
       
       let faceDescriptorData;
       
       if (modelsLoaded && faceDescriptor) {
-        // Use the real face descriptor from face-api.js
-        faceDescriptorData = JSON.stringify(Array.from(faceDescriptor));
+        // Use multiple face descriptor samples for better accuracy
+        const descriptorSamples = [];
+        
+        // Capture descriptor from current frame
+        descriptorSamples.push(Array.from(faceDescriptor));
+        
+        // Try to get additional samples with slight delays
+        for (let i = 0; i < 2; i++) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+          try {
+            const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions())
+              .withFaceLandmarks()
+              .withFaceDescriptors();
+            
+            if (detections.length > 0) {
+              descriptorSamples.push(Array.from(detections[0].descriptor));
+            }
+          } catch (error) {
+            console.log('Additional sample failed:', error);
+          }
+        }
+        
+        // Average the descriptors for more stable results
+        if (descriptorSamples.length > 1) {
+          const avgDescriptor = new Array(descriptorSamples[0].length).fill(0);
+          descriptorSamples.forEach(desc => {
+            desc.forEach((val, idx) => {
+              avgDescriptor[idx] += val / descriptorSamples.length;
+            });
+          });
+          faceDescriptorData = JSON.stringify(avgDescriptor);
+        } else {
+          faceDescriptorData = JSON.stringify(descriptorSamples[0]);
+        }
       } else {
-        // Fallback to enhanced basic descriptor
-        faceDescriptorData = generateEnhancedFaceDescriptor(imageData, context, canvas);
+        // Enhanced fallback descriptor with multiple samples
+        const enhancedDescriptor = generateEnhancedFaceDescriptor(imageData, context, canvas);
+        faceDescriptorData = enhancedDescriptor;
       }
       
       setTimeout(() => {

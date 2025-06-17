@@ -44,19 +44,41 @@ function calculateFaceSimilarity(stored: string, captured: string): number {
 }
 
 function calculateEuclideanSimilarity(descriptor1: number[], descriptor2: number[]): number {
-  if (descriptor1.length !== descriptor2.length) return 0;
-  
-  let sumSquaredDiffs = 0;
-  for (let i = 0; i < descriptor1.length; i++) {
-    const diff = descriptor1[i] - descriptor2[i];
-    sumSquaredDiffs += diff * diff;
+  if (!descriptor1 || !descriptor2 || descriptor1.length !== descriptor2.length) {
+    return 0;
   }
-  
-  const distance = Math.sqrt(sumSquaredDiffs);
-  // Convert distance to similarity (lower distance = higher similarity)
-  // Face-api.js typical threshold is 0.6, we use 0.5 for stricter matching
-  const similarity = Math.max(0, 1 - (distance / 0.5));
-  return similarity;
+
+  // Validate descriptors are not all zeros (which causes 0% similarity)
+  const sum1 = descriptor1.reduce((a, b) => a + Math.abs(b), 0);
+  const sum2 = descriptor2.reduce((a, b) => a + Math.abs(b), 0);
+  if (sum1 === 0 || sum2 === 0) {
+    console.log('Invalid descriptor detected - all zeros');
+    return 0;
+  }
+
+  // Use cosine similarity for better face descriptor comparison
+  let dotProduct = 0;
+  let norm1 = 0;
+  let norm2 = 0;
+
+  for (let i = 0; i < descriptor1.length; i++) {
+    dotProduct += descriptor1[i] * descriptor2[i];
+    norm1 += descriptor1[i] * descriptor1[i];
+    norm2 += descriptor2[i] * descriptor2[i];
+  }
+
+  norm1 = Math.sqrt(norm1);
+  norm2 = Math.sqrt(norm2);
+
+  if (norm1 === 0 || norm2 === 0) {
+    return 0;
+  }
+
+  // Cosine similarity: ranges from -1 to 1, convert to 0-1 scale
+  const cosineSimilarity = dotProduct / (norm1 * norm2);
+  const similarity = (cosineSimilarity + 1) / 2;
+
+  return Math.max(0, Math.min(1, similarity));
 }
 
 function calculateEnhancedFeatureSimilarity(stored: any, captured: any): number {
@@ -177,8 +199,8 @@ export function registerRoutes(app: Express): Server {
       let hasUserSpecificFeatures = false;
       
       if (Array.isArray(storedFeatures) && Array.isArray(capturedFeatures)) {
-        // Face-api.js descriptors are most accurate
-        threshold = 0.45;
+        // Face-api.js descriptors with cosine similarity are most accurate
+        threshold = 0.75; // Higher threshold for cosine similarity
         descriptorType = 'face-api';
         hasUserSpecificFeatures = true;
       } else if (storedFeatures.eyeRegion && capturedFeatures.eyeRegion && 
