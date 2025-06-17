@@ -430,11 +430,24 @@ export function AdvancedFaceTraining({ onComplete, onCancel }: AdvancedFaceTrain
 
           {/* Status */}
           <div className="text-center space-y-2">
-            {!faceDetected && !isCapturing && (
-              <p className="text-amber-600">Position your face according to the instruction above</p>
-            )}
-            {faceDetected && !isCapturing && !currentStep.completed && (
-              <p className="text-green-600">Hold position - capturing automatically...</p>
+            {!currentStep.completed && (
+              <div className="space-y-2">
+                <div className={`text-sm font-medium ${
+                  poseValidation.isCorrectPose ? 'text-green-600' : 'text-amber-600'
+                }`}>
+                  {poseValidation.message}
+                </div>
+                {poseValidation.confidence > 0 && (
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div 
+                      className={`h-2 rounded-full transition-all duration-300 ${
+                        poseValidation.confidence > 0.7 ? 'bg-green-500' : 'bg-amber-500'
+                      }`}
+                      style={{ width: `${poseValidation.confidence * 100}%` }}
+                    ></div>
+                  </div>
+                )}
+              </div>
             )}
             {currentStep.completed && (
               <p className="text-green-600 font-semibold">✓ Step completed successfully!</p>
@@ -611,7 +624,7 @@ export function AdvancedFaceTraining({ onComplete, onCancel }: AdvancedFaceTrain
       'far': [-0.05, -0.05, -0.05]
     };
     
-    const variations = stepVariations[stepId] || [0, 0, 0];
+    const variations: number[] = (stepVariations as any)[stepId] || [0, 0, 0];
     descriptor.push(...variations);
     
     // Pad to consistent length (128 dimensions like face-api.js)
