@@ -24,6 +24,11 @@ function calculateFaceSimilarity(stored: string, captured: string): number {
   const storedFeatures = extractFaceCharacteristics(stored);
   const capturedFeatures = extractFaceCharacteristics(captured);
   
+  // Handle advanced training data (v2) - most sophisticated matching
+  if (storedFeatures.version === 2 && storedFeatures.type === 'advanced-training') {
+    return calculateAdvancedTrainingSimilarity(storedFeatures, capturedFeatures);
+  }
+  
   // Handle face-api.js descriptors (arrays of numbers)
   if (Array.isArray(storedFeatures) && Array.isArray(capturedFeatures)) {
     return calculateEuclideanSimilarity(storedFeatures, capturedFeatures);
@@ -242,7 +247,12 @@ export function registerRoutes(app: Express): Server {
       let descriptorType = 'basic';
       let hasUserSpecificFeatures = false;
       
-      if (Array.isArray(storedFeatures) && Array.isArray(capturedFeatures)) {
+      if (storedFeatures.version === 2 && storedFeatures.type === 'advanced-training') {
+        // Advanced training data - highest accuracy with multiple poses
+        threshold = 0.80; // High threshold for advanced training
+        descriptorType = 'advanced-training';
+        hasUserSpecificFeatures = true;
+      } else if (Array.isArray(storedFeatures) && Array.isArray(capturedFeatures)) {
         // Face-api.js descriptors with cosine similarity are most accurate
         threshold = 0.75; // Higher threshold for cosine similarity
         descriptorType = 'face-api';
