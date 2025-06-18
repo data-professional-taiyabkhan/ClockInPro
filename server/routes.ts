@@ -4,6 +4,7 @@ import { setupAuth } from "./auth";
 import { storage } from "./storage";
 import { insertAttendanceRecordSchema } from "@shared/schema";
 import { format, differenceInMinutes } from "date-fns";
+import { rekognitionService } from "./aws-rekognition";
 
 // Enhanced face matching utility functions
 function extractFaceCharacteristics(faceData: string): any {
@@ -236,91 +237,28 @@ export function registerRoutes(app: Express): Server {
   setupAuth(app);
 
   // Enhanced face matching with improved accuracy
-  function matchUserFace(storedFaceData: string, capturedFaceData: string, userId: number): boolean {
+  async function matchUserFace(storedFaceData: string, capturedFaceData: string, userId: number): Promise<boolean> {
     try {
-      const similarity = calculateFaceSimilarity(storedFaceData, capturedFaceData);
-      const storedFeatures = extractFaceCharacteristics(storedFaceData);
-      const capturedFeatures = extractFaceCharacteristics(capturedFaceData);
+      console.log(`AWS Rekognition face matching for user ${userId}`);
       
-      // Determine threshold based on descriptor type with user-specific validation
-      let threshold = 0.4; // Secure baseline threshold
-      let descriptorType = 'basic';
-      let hasUserSpecificFeatures = false;
+      // Try AWS Rekognition first
+      const comparison = await rekognitionService.compareFaces(storedFaceData, capturedFaceData);
       
-      if (storedFeatures.version === 2 && storedFeatures.type === 'advanced-training') {
-        // Advanced training data - highest accuracy with multiple poses
-        threshold = 0.80; // High threshold for advanced training
-        descriptorType = 'advanced-training';
-        hasUserSpecificFeatures = true;
-      } else if (Array.isArray(storedFeatures) && Array.isArray(capturedFeatures)) {
-        // Face-api.js descriptors with cosine similarity are most accurate
-        threshold = 0.75; // Higher threshold for cosine similarity
-        descriptorType = 'face-api';
-        hasUserSpecificFeatures = true;
-      } else if (storedFeatures.eyeRegion && capturedFeatures.eyeRegion && 
-                 storedFeatures.cheekRegion && capturedFeatures.cheekRegion) {
-        // Enhanced features with multiple regions - more secure
-        threshold = 0.45;
-        descriptorType = 'enhanced';
-        hasUserSpecificFeatures = true;
-      } else if (storedFeatures.eyeRegion && capturedFeatures.eyeRegion) {
-        // Basic enhanced features
-        threshold = 0.4;
-        descriptorType = 'enhanced-basic';
-        hasUserSpecificFeatures = true;
-      } else if (storedFeatures.legacy && capturedFeatures.legacy) {
-        // Legacy descriptors - less secure
-        threshold = 0.35;
-        descriptorType = 'legacy';
-      } else {
-        // Mixed or unknown descriptor types - most secure
-        threshold = 0.45;
-        descriptorType = 'mixed';
-      }
+      console.log(`Face comparison result: similarity=${comparison.similarity.toFixed(2)}%, confidence=${comparison.confidence.toFixed(2)}%, match=${comparison.isMatch}`);
       
-      // Add user-specific validation for enhanced security
-      if (hasUserSpecificFeatures) {
-        // Check geometric consistency for the specific user
-        if (storedFeatures.faceRadius && capturedFeatures.faceRadius) {
-          const radiusDiff = Math.abs(storedFeatures.faceRadius - capturedFeatures.faceRadius) / 
-                            Math.max(storedFeatures.faceRadius, capturedFeatures.faceRadius);
-          if (radiusDiff > 0.3) { // Face size too different
-            console.log(`Face size mismatch for user ${userId}: ${radiusDiff.toFixed(2)} > 0.3`);
-            return false;
-          }
-        }
-        
-        // Check aspect ratio consistency
-        if (storedFeatures.aspectRatio && capturedFeatures.aspectRatio) {
-          const aspectDiff = Math.abs(storedFeatures.aspectRatio - capturedFeatures.aspectRatio) / 
-                            Math.max(storedFeatures.aspectRatio, capturedFeatures.aspectRatio);
-          if (aspectDiff > 0.2) { // Face proportions too different
-            console.log(`Face proportion mismatch for user ${userId}: ${aspectDiff.toFixed(2)} > 0.2`);
-            return false;
-          }
-        }
-      }
-      
-      // Additional validation for enhanced/face-api descriptors
-      let isValidCapture = true;
-      if (capturedFeatures.timestamp) {
-        const captureAge = Date.now() - capturedFeatures.timestamp;
-        isValidCapture = captureAge < 300000; // Within 5 minutes
-      }
-      
-      const isMatch = similarity >= threshold && isValidCapture;
-      
-      console.log(`Face verification for user ${userId}:`);
-      console.log(`- Descriptor type: ${descriptorType}`);
-      console.log(`- Similarity: ${(similarity * 100).toFixed(1)}%`);
-      console.log(`- Threshold: ${(threshold * 100).toFixed(1)}%`);
-      console.log(`- Valid capture: ${isValidCapture}`);
-      console.log(`- Match result: ${isMatch}`);
-      
-      return isMatch;
+      return comparison.isMatch;
     } catch (error) {
-      console.error('Face matching error:', error);
-      return false;
+      console.error('AWS Rekognition face matching error:', error);
+      
+      // Fallback to existing system if AWS fails
+      try {
+        const similarity = calculateFaceSimilarity(storedFaceData, capturedFaceData);
+        console.log(`Fallback similarity: ${similarity.toFixed(3)}`);
+        return similarity >= 0.6;
+      } catch (fallbackError) {
+        console.error('Fallback face matching also failed:', fallbackError);
+        return false;
+      }
     }
   }
 
