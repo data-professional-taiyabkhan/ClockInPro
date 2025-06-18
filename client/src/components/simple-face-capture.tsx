@@ -172,12 +172,25 @@ export function SimpleFaceCapture({
 
       if (!context) return;
 
-      // High quality capture
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+      // Optimized capture - reduce size while maintaining quality
+      const maxWidth = 800;
+      const maxHeight = 600;
+      const aspectRatio = video.videoWidth / video.videoHeight;
+      
+      let canvasWidth = maxWidth;
+      let canvasHeight = maxHeight;
+      
+      if (aspectRatio > 1) {
+        canvasHeight = maxWidth / aspectRatio;
+      } else {
+        canvasWidth = maxHeight * aspectRatio;
+      }
+      
+      canvas.width = canvasWidth;
+      canvas.height = canvasHeight;
+      context.drawImage(video, 0, 0, canvasWidth, canvasHeight);
 
-      const imageData = canvas.toDataURL('image/jpeg', 0.95);
+      const imageData = canvas.toDataURL('image/jpeg', 0.8);
       onCapture(imageData);
     } catch (error) {
       console.error('Capture error:', error);
