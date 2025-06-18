@@ -108,7 +108,7 @@ export function AWSFaceCapture({
           try {
             const response = await apiRequest('POST', '/api/validate-face', { faceData: imageData });
 
-            const metrics = await response.json();
+            const metrics = response as FaceQualityMetrics;
             setQualityMetrics(metrics);
 
             if (metrics.isValid) {
@@ -228,7 +228,7 @@ export function AWSFaceCapture({
         try {
           const response = await apiRequest('POST', '/api/validate-face', { faceData: imageData });
 
-          const finalMetrics = await response.json();
+          const finalMetrics = response as FaceQualityMetrics;
           
           if (finalMetrics.isValid) {
             onCapture(imageData, finalMetrics);

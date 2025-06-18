@@ -1,17 +1,19 @@
 import { useAuth } from "@/hooks/use-auth";
 import { useLocation } from "wouter";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Check } from "lucide-react";
 import { format } from "date-fns";
 import { apiRequest } from "@/lib/queryClient";
+import { AWSFaceCapture } from "@/components/aws-face-capture";
 
 export default function WelcomePage() {
   const { user } = useAuth();
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
+  const [showFaceRegistration, setShowFaceRegistration] = useState(false);
 
   const clockInMutation = useMutation({
     mutationFn: () => apiRequest("POST", "/api/clock-in"),
@@ -21,7 +23,22 @@ export default function WelcomePage() {
     },
   });
 
+  const registerFaceMutation = useMutation({
+    mutationFn: (faceData: string) => apiRequest("POST", "/api/register-face", { faceData }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/user"] });
+      setShowFaceRegistration(false);
+      setLocation("/");
+    },
+  });
+
   useEffect(() => {
+    // Check if user needs face registration
+    if (!user?.faceRegistered) {
+      setShowFaceRegistration(true);
+      return;
+    }
+
     // Perform clock in when component mounts
     clockInMutation.mutate();
 
@@ -31,9 +48,29 @@ export default function WelcomePage() {
     }, 3000);
 
     return () => clearTimeout(timer);
-  }, []);
+  }, [user?.faceRegistered]);
 
   const currentTime = new Date();
+
+  const handleFaceCapture = (faceData: string) => {
+    registerFaceMutation.mutate(faceData);
+  };
+
+  if (showFaceRegistration) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-3 sm:p-4 bg-gradient-to-br from-blue-50 to-indigo-50">
+        <div className="w-full max-w-2xl">
+          <AWSFaceCapture
+            title="Register Your Face"
+            description="To use face authentication for attendance, please register your face with high-quality verification"
+            isRegistration={true}
+            onCapture={handleFaceCapture}
+            onCancel={() => setLocation("/")}
+          />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center p-3 sm:p-4 bg-gradient-to-br from-green-50 to-blue-50">

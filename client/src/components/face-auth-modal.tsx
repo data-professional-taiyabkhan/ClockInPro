@@ -89,12 +89,12 @@ export function FaceAuthModal({ isOpen, onClose, onSuccess, action }: FaceAuthMo
         </DialogHeader>
         <div className="px-4 sm:px-6 pb-4 sm:pb-6">
           {showCamera ? (
-            <CameraFaceCapture
-              onCapture={handleFaceCapture}
+            <AWSFaceCapture
+              onCapture={(faceData) => handleFaceCapture(faceData)}
               onCancel={handleCancel}
               title={`Verify Identity for Clock ${action === 'in' ? 'In' : 'Out'}`}
               description="Position your face within the frame to verify your identity"
-              isVerification={true}
+              isRegistration={false}
             />
           ) : (
             <div className="text-center p-4 sm:p-6">
