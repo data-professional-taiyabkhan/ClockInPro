@@ -48,7 +48,7 @@ export default function WelcomePage() {
     }, 3000);
 
     return () => clearTimeout(timer);
-  }, [user?.faceRegistered]);
+  }, [user?.faceRegistered, clockInMutation, setLocation]);
 
   const currentTime = new Date();
 
