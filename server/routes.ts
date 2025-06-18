@@ -337,6 +337,30 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Register face data
+  // Validate face image quality before registration
+  app.post("/api/validate-face", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+
+    try {
+      const { faceData } = req.body;
+      if (!faceData) {
+        return res.status(400).json({ message: "Face data is required" });
+      }
+
+      const validation = await rekognitionService.validateImageForRegistration(faceData);
+      res.json(validation);
+    } catch (error) {
+      console.error('Face validation error:', error);
+      res.status(500).json({ 
+        message: "Face validation failed", 
+        isValid: false, 
+        issues: ["Validation service temporarily unavailable"] 
+      });
+    }
+  });
+
   app.post("/api/register-face", async (req, res) => {
     if (!req.isAuthenticated()) {
       return res.status(401).json({ message: "Not authenticated" });
@@ -348,8 +372,23 @@ export function registerRoutes(app: Express): Server {
         return res.status(400).json({ message: "Face data is required" });
       }
 
+      // Validate face quality with AWS Rekognition
+      const validation = await rekognitionService.validateImageForRegistration(faceData);
+      
+      if (!validation.isValid) {
+        return res.status(400).json({ 
+          message: "Face image quality is not suitable for registration", 
+          issues: validation.issues 
+        });
+      }
+
       const updatedUser = await storage.updateUserFaceData(req.user!.id, faceData);
-      res.json({ message: "Face registered successfully", user: updatedUser });
+      res.json({ 
+        message: "Face registered successfully with high quality verification", 
+        user: updatedUser,
+        quality: validation.quality,
+        confidence: validation.confidence
+      });
     } catch (error) {
       console.error('Face registration error:', error);
       res.status(500).json({ message: "Face registration failed" });
@@ -376,7 +415,7 @@ export function registerRoutes(app: Express): Server {
       }
 
       // Use enhanced face matching that validates user-specific characteristics
-      const isValidMatch = matchUserFace(user.faceData, faceData, user.id);
+      const isValidMatch = await matchUserFace(user.faceData, faceData, user.id);
       
       if (isValidMatch) {
         res.json({ verified: true, message: "Face verification successful" });
