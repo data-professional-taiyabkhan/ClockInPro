@@ -7,7 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Check } from "lucide-react";
 import { format } from "date-fns";
 import { apiRequest } from "@/lib/queryClient";
-import { AWSFaceCapture } from "@/components/aws-face-capture";
+import { SimpleFaceCapture } from "@/components/simple-face-capture";
 
 export default function WelcomePage() {
   const { user } = useAuth();
@@ -60,10 +60,9 @@ export default function WelcomePage() {
     return (
       <div className="min-h-screen flex items-center justify-center p-3 sm:p-4 bg-gradient-to-br from-blue-50 to-indigo-50">
         <div className="w-full max-w-2xl">
-          <AWSFaceCapture
+          <SimpleFaceCapture
             title="Register Your Face"
-            description="To use face authentication for attendance, please register your face with high-quality verification"
-            isRegistration={true}
+            description="To use face authentication for attendance, please register your face"
             onCapture={handleFaceCapture}
             onCancel={() => setLocation("/")}
           />

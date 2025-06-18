@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { User, Camera } from "lucide-react";
-import { AWSFaceCapture } from "./aws-face-capture";
+import { SimpleFaceCapture } from "./simple-face-capture";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -89,12 +89,11 @@ export function FaceAuthModal({ isOpen, onClose, onSuccess, action }: FaceAuthMo
         </DialogHeader>
         <div className="px-4 sm:px-6 pb-4 sm:pb-6">
           {showCamera ? (
-            <AWSFaceCapture
-              onCapture={(faceData) => handleFaceCapture(faceData)}
+            <SimpleFaceCapture
+              onCapture={handleFaceCapture}
               onCancel={handleCancel}
               title={`Verify Identity for Clock ${action === 'in' ? 'In' : 'Out'}`}
               description="Position your face within the frame to verify your identity"
-              isRegistration={false}
             />
           ) : (
             <div className="text-center p-4 sm:p-6">

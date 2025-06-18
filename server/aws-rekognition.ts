@@ -4,8 +4,16 @@ export class AWSRekognitionService {
   private client: RekognitionClient;
 
   constructor() {
+    // AWS Rekognition requires a specific region, not "Global"
+    let region = process.env.AWS_REGION || 'us-east-1';
+    if (region.toLowerCase() === 'global') {
+      region = 'us-east-1'; // Default to us-east-1 for global setting
+    }
+    
+    console.log(`Initializing AWS Rekognition with region: ${region}`);
+    
     this.client = new RekognitionClient({
-      region: process.env.AWS_REGION || 'us-east-1',
+      region: region,
       credentials: {
         accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
         secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
