@@ -26,11 +26,10 @@ export default function LoginPage() {
 
   const loginMutation = useMutation({
     mutationFn: async (data: LoginData) => {
-      const response = await apiRequest("/api/login", {
+      return await apiRequest("/api/login", {
         method: "POST",
         body: JSON.stringify(data),
       });
-      return response;
     },
     onSuccess: (user) => {
       queryClient.setQueryData(["/api/user"], user);
