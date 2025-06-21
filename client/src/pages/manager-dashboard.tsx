@@ -499,18 +499,14 @@ export default function ManagerDashboard() {
 
                   <div>
                     <Label htmlFor="locationId">Location (optional)</Label>
-                    <Select name="locationId">
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select location" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {locations?.map((location: any) => (
-                          <SelectItem key={location.id} value={location.id.toString()}>
-                            {location.name} ({location.postcode})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <select name="locationId" className="w-full p-2 border rounded">
+                      <option value="">Select location</option>
+                      {locations?.map((location: any) => (
+                        <option key={location.id} value={location.id.toString()}>
+                          {location.name} ({location.postcode})
+                        </option>
+                      ))}
+                    </select>
                   </div>
 
                   <div>
