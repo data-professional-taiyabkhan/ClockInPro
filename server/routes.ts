@@ -372,8 +372,13 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Employee management (Manager/Admin only)
-  app.get("/api/employees", requireManager, async (req, res) => {
+  app.get("/api/employees", requireAuth, async (req, res) => {
     try {
+      // Check if user is manager or admin
+      if (req.user!.role !== 'manager' && req.user!.role !== 'admin') {
+        return res.status(403).json({ message: "Manager access required" });
+      }
+
       // Get all users for managers/admins to see
       const allUsers = await db.select().from(users).orderBy(desc(users.createdAt));
       
