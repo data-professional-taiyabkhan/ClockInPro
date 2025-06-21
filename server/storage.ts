@@ -1,4 +1,14 @@
-import { users, attendanceRecords, type User, type InsertUser, type AttendanceRecord, type InsertAttendanceRecord } from "@shared/schema";
+import {
+  users,
+  attendanceRecords,
+  locations,
+  type User,
+  type InsertUser,
+  type AttendanceRecord,
+  type InsertAttendanceRecord,
+  type Location,
+  type InsertLocation,
+} from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and } from "drizzle-orm";
 import session from "express-session";
@@ -35,10 +45,11 @@ export class DatabaseStorage implements IStorage {
 
   constructor() {
     this.sessionStore = new MemoryStoreSession({
-      checkPeriod: 86400000 // prune expired entries every 24h
+      checkPeriod: 86400000, // 24 hours
     });
   }
 
+  // User operations
   async getUser(id: number): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.id, id));
     return user || undefined;
@@ -57,18 +68,24 @@ export class DatabaseStorage implements IStorage {
     return user;
   }
 
-  async updateUserFaceData(userId: number, faceData: string): Promise<User> {
+  async updateUserFaceImage(userId: number, faceImageUrl: string): Promise<User> {
     const [user] = await db
       .update(users)
-      .set({ 
-        faceData: faceData,
-        faceRegistered: true 
-      })
+      .set({ faceImageUrl })
       .where(eq(users.id, userId))
       .returning();
     return user;
   }
 
+  async getAllEmployees(): Promise<User[]> {
+    return await db
+      .select()
+      .from(users)
+      .where(eq(users.role, "employee"))
+      .orderBy(desc(users.createdAt));
+  }
+
+  // Attendance operations
   async createAttendanceRecord(record: InsertAttendanceRecord): Promise<AttendanceRecord> {
     const [attendanceRecord] = await db
       .insert(attendanceRecords)
@@ -78,12 +95,12 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateAttendanceRecord(id: number, updates: Partial<AttendanceRecord>): Promise<AttendanceRecord> {
-    const [updatedRecord] = await db
+    const [attendanceRecord] = await db
       .update(attendanceRecords)
       .set(updates)
       .where(eq(attendanceRecords.id, id))
       .returning();
-    return updatedRecord;
+    return attendanceRecord;
   }
 
   async getUserAttendanceRecords(userId: number, limit: number = 10): Promise<AttendanceRecord[]> {
@@ -99,13 +116,50 @@ export class DatabaseStorage implements IStorage {
     const [record] = await db
       .select()
       .from(attendanceRecords)
-      .where(and(
-        eq(attendanceRecords.userId, userId),
-        eq(attendanceRecords.date, date)
-      ))
-      .orderBy(desc(attendanceRecords.createdAt))
-      .limit(1);
+      .where(and(eq(attendanceRecords.userId, userId), eq(attendanceRecords.date, date)));
     return record || undefined;
+  }
+
+  async getAllAttendanceRecords(limit: number = 50): Promise<AttendanceRecord[]> {
+    return await db
+      .select()
+      .from(attendanceRecords)
+      .orderBy(desc(attendanceRecords.createdAt))
+      .limit(limit);
+  }
+
+  // Location operations
+  async createLocation(location: InsertLocation): Promise<Location> {
+    const [newLocation] = await db
+      .insert(locations)
+      .values(location)
+      .returning();
+    return newLocation;
+  }
+
+  async getActiveLocations(): Promise<Location[]> {
+    return await db
+      .select()
+      .from(locations)
+      .where(eq(locations.isActive, true))
+      .orderBy(desc(locations.createdAt));
+  }
+
+  async getLocationByPostcode(postcode: string): Promise<Location | undefined> {
+    const [location] = await db
+      .select()
+      .from(locations)
+      .where(and(eq(locations.postcode, postcode), eq(locations.isActive, true)));
+    return location || undefined;
+  }
+
+  async updateLocation(id: number, updates: Partial<Location>): Promise<Location> {
+    const [location] = await db
+      .update(locations)
+      .set(updates)
+      .where(eq(locations.id, id))
+      .returning();
+    return location;
   }
 }
 
