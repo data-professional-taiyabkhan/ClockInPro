@@ -2,12 +2,15 @@ import {
   users,
   attendanceRecords,
   locations,
+  employeeInvitations,
   type User,
   type InsertUser,
   type AttendanceRecord,
   type InsertAttendanceRecord,
   type Location,
   type InsertLocation,
+  type EmployeeInvitation,
+  type InsertInvitation,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and } from "drizzle-orm";
@@ -36,6 +39,12 @@ export interface IStorage {
   getActiveLocations(): Promise<Location[]>;
   getLocationByPostcode(postcode: string): Promise<Location | undefined>;
   updateLocation(id: number, updates: Partial<Location>): Promise<Location>;
+  
+  // Invitation operations
+  createInvitation(invitation: InsertInvitation & { token: string }): Promise<EmployeeInvitation>;
+  getInvitationByToken(token: string): Promise<EmployeeInvitation | undefined>;
+  markInvitationUsed(id: number): Promise<EmployeeInvitation>;
+  getActiveInvitations(): Promise<EmployeeInvitation[]>;
   
   sessionStore: any;
 }
@@ -160,6 +169,40 @@ export class DatabaseStorage implements IStorage {
       .where(eq(locations.id, id))
       .returning();
     return location;
+  }
+
+  // Invitation operations
+  async createInvitation(invitation: InsertInvitation & { token: string }): Promise<EmployeeInvitation> {
+    const [newInvitation] = await db
+      .insert(employeeInvitations)
+      .values(invitation)
+      .returning();
+    return newInvitation;
+  }
+
+  async getInvitationByToken(token: string): Promise<EmployeeInvitation | undefined> {
+    const [invitation] = await db
+      .select()
+      .from(employeeInvitations)
+      .where(and(eq(employeeInvitations.token, token), eq(employeeInvitations.used, false)));
+    return invitation || undefined;
+  }
+
+  async markInvitationUsed(id: number): Promise<EmployeeInvitation> {
+    const [invitation] = await db
+      .update(employeeInvitations)
+      .set({ used: true })
+      .where(eq(employeeInvitations.id, id))
+      .returning();
+    return invitation;
+  }
+
+  async getActiveInvitations(): Promise<EmployeeInvitation[]> {
+    return await db
+      .select()
+      .from(employeeInvitations)
+      .where(and(eq(employeeInvitations.used, false)))
+      .orderBy(desc(employeeInvitations.createdAt));
   }
 }
 

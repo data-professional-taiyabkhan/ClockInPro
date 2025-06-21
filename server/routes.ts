@@ -2,9 +2,10 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { setupAuth, requireAuth, requireManager, requireAdmin, hashPassword, comparePasswords } from "./auth";
 import { storage } from "./storage";
-import { insertAttendanceRecordSchema, loginSchema, registerSchema, users } from "@shared/schema";
-import { desc } from "drizzle-orm";
+import { insertAttendanceRecordSchema, loginSchema, registerSchema, users, employeeInvitations } from "@shared/schema";
+import { desc, eq, and } from "drizzle-orm";
 import { db } from "./db";
+import crypto from "crypto";
 import { format, differenceInMinutes } from "date-fns";
 import { rekognitionService } from "./aws-rekognition";
 
@@ -384,6 +385,97 @@ export function registerRoutes(app: Express): Server {
     } catch (error) {
       console.error("Get employees error:", error);
       res.status(500).json({ message: "Failed to get employees" });
+    }
+  });
+
+  // Employee invitation system
+  app.post("/api/create-invitation", requireManager, async (req, res) => {
+    try {
+      const { email, role } = req.body;
+      
+      // Check if user already exists
+      const existingUser = await storage.getUserByEmail(email);
+      if (existingUser) {
+        return res.status(400).json({ message: "User already exists" });
+      }
+
+      // Generate secure token
+      const token = crypto.randomBytes(32).toString('hex');
+      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+
+      const invitation = await storage.createInvitation({
+        email,
+        role: role || "employee",
+        invitedBy: req.user!.id,
+        expiresAt,
+        token
+      });
+
+      res.json({
+        ...invitation,
+        invitationUrl: `${req.protocol}://${req.hostname}/register?token=${token}`
+      });
+    } catch (error) {
+      console.error("Create invitation error:", error);
+      res.status(500).json({ message: "Failed to create invitation" });
+    }
+  });
+
+  app.get("/api/invitations", requireManager, async (req, res) => {
+    try {
+      const invitations = await storage.getActiveInvitations();
+      res.json(invitations);
+    } catch (error) {
+      console.error("Get invitations error:", error);
+      res.status(500).json({ message: "Failed to get invitations" });
+    }
+  });
+
+  app.post("/api/register-with-token", async (req, res) => {
+    try {
+      const { token, firstName, lastName, password, faceImageData } = req.body;
+      
+      // Validate invitation token
+      const invitation = await storage.getInvitationByToken(token);
+      if (!invitation) {
+        return res.status(400).json({ message: "Invalid or expired invitation" });
+      }
+
+      if (new Date() > invitation.expiresAt) {
+        return res.status(400).json({ message: "Invitation has expired" });
+      }
+
+      // Check if user already exists
+      const existingUser = await storage.getUserByEmail(invitation.email);
+      if (existingUser) {
+        return res.status(400).json({ message: "User already exists" });
+      }
+
+      // Hash password
+      const hashedPassword = await hashPassword(password);
+      
+      // Create user with face image
+      const user = await storage.createUser({
+        email: invitation.email,
+        firstName,
+        lastName,
+        password: hashedPassword,
+        role: invitation.role,
+        faceImageUrl: faceImageData || null,
+      });
+
+      // Mark invitation as used
+      await storage.markInvitationUsed(invitation.id);
+
+      // Set session
+      (req.session as any).userId = user.id;
+
+      // Return user without password
+      const { password: _, ...safeUser } = user;
+      res.json(safeUser);
+    } catch (error) {
+      console.error("Register with token error:", error);
+      res.status(400).json({ message: "Registration failed" });
     }
   });
 

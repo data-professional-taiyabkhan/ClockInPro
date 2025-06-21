@@ -8,7 +8,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Users, MapPin, Clock, Plus, LogOut } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Users, MapPin, Clock, Plus, LogOut, Send, Link as LinkIcon } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { format } from "date-fns";
@@ -20,6 +21,7 @@ import { registerSchema, type RegisterData } from "@shared/schema";
 export default function ManagerDashboard() {
   const [isAddingEmployee, setIsAddingEmployee] = useState(false);
   const [isAddingLocation, setIsAddingLocation] = useState(false);
+  const [isCreatingInvitation, setIsCreatingInvitation] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<any>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -42,6 +44,11 @@ export default function ManagerDashboard() {
   // Get attendance records
   const { data: attendanceRecords } = useQuery({
     queryKey: ["/api/attendance"],
+  });
+
+  // Get invitations
+  const { data: invitations } = useQuery({
+    queryKey: ["/api/invitations"],
   });
 
   // Employee registration form
@@ -132,6 +139,31 @@ export default function ManagerDashboard() {
     },
   });
 
+  // Create invitation mutation
+  const createInvitationMutation = useMutation({
+    mutationFn: async (data: any) => {
+      return await apiRequest("/api/create-invitation", {
+        method: "POST",
+        body: JSON.stringify(data),
+      });
+    },
+    onSuccess: () => {
+      toast({
+        title: "Success",
+        description: "Invitation created successfully",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/invitations"] });
+      setIsCreatingInvitation(false);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Invitation Creation Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   // Logout mutation
   const logoutMutation = useMutation({
     mutationFn: async () => {
@@ -175,6 +207,16 @@ export default function ManagerDashboard() {
     manualClockInMutation.mutate(clockInData);
   };
 
+  const handleCreateInvitation = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const formData = new FormData(event.currentTarget);
+    const invitationData = {
+      email: formData.get("email"),
+      role: formData.get("role") || "employee",
+    };
+    createInvitationMutation.mutate(invitationData);
+  };
+
   if (!user) {
     return <div>Loading...</div>;
   }
@@ -201,9 +243,10 @@ export default function ManagerDashboard() {
         </div>
 
         <Tabs defaultValue="attendance" className="w-full">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="attendance">Attendance</TabsTrigger>
             <TabsTrigger value="employees">Employees</TabsTrigger>
+            <TabsTrigger value="invitations">Invitations</TabsTrigger>
             <TabsTrigger value="locations">Locations</TabsTrigger>
             <TabsTrigger value="manual">Manual Entry</TabsTrigger>
           </TabsList>
@@ -252,13 +295,55 @@ export default function ManagerDashboard() {
           <TabsContent value="employees" className="space-y-4">
             <div className="flex justify-between items-center">
               <h2 className="text-xl font-semibold">Employee Management</h2>
-              <Dialog open={isAddingEmployee} onOpenChange={setIsAddingEmployee}>
-                <DialogTrigger asChild>
-                  <Button>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Employee
-                  </Button>
-                </DialogTrigger>
+              <div className="flex gap-2">
+                <Dialog open={isCreatingInvitation} onOpenChange={setIsCreatingInvitation}>
+                  <DialogTrigger asChild>
+                    <Button variant="outline">
+                      <Send className="h-4 w-4 mr-2" />
+                      Send Invitation
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Send Employee Invitation</DialogTitle>
+                      <DialogDescription>
+                        Create a secure invitation link for new employees
+                      </DialogDescription>
+                    </DialogHeader>
+                    <form onSubmit={handleCreateInvitation} className="space-y-4">
+                      <div>
+                        <Label htmlFor="email">Employee Email</Label>
+                        <Input name="email" type="email" required />
+                      </div>
+
+                      <div>
+                        <Label htmlFor="role">Role</Label>
+                        <select name="role" className="w-full p-2 border rounded">
+                          <option value="employee">Employee</option>
+                          {user.role === "admin" && (
+                            <option value="manager">Manager</option>
+                          )}
+                        </select>
+                      </div>
+
+                      <Button
+                        type="submit"
+                        disabled={createInvitationMutation.isPending}
+                        className="w-full"
+                      >
+                        {createInvitationMutation.isPending ? "Creating..." : "Create Invitation"}
+                      </Button>
+                    </form>
+                  </DialogContent>
+                </Dialog>
+
+                <Dialog open={isAddingEmployee} onOpenChange={setIsAddingEmployee}>
+                  <DialogTrigger asChild>
+                    <Button>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Employee Directly
+                    </Button>
+                  </DialogTrigger>
                 <DialogContent>
                   <DialogHeader>
                     <DialogTitle>Add New Employee</DialogTitle>
@@ -322,6 +407,7 @@ export default function ManagerDashboard() {
                   </form>
                 </DialogContent>
               </Dialog>
+              </div>
             </div>
 
             <Card>
@@ -385,6 +471,75 @@ export default function ManagerDashboard() {
                       </div>
                     ))}
                   </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Invitations Tab */}
+          <TabsContent value="invitations" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <LinkIcon className="h-5 w-5" />
+                  Employee Invitations
+                </CardTitle>
+                <CardDescription>
+                  Secure invitation links for new employees to set up their accounts
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {invitations?.length === 0 ? (
+                    <Alert>
+                      <AlertDescription>
+                        No active invitations. Use "Send Invitation" to create secure links for new employees.
+                      </AlertDescription>
+                    </Alert>
+                  ) : (
+                    <div className="space-y-2">
+                      {invitations?.map((invitation: any) => (
+                        <div
+                          key={invitation.id}
+                          className="p-4 border rounded-lg space-y-2"
+                        >
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <h3 className="font-medium">{invitation.email}</h3>
+                              <p className="text-sm text-gray-600 dark:text-gray-400">
+                                Role: {invitation.role}
+                              </p>
+                              <p className="text-xs text-gray-500">
+                                Expires: {new Date(invitation.expiresAt).toLocaleDateString()}
+                              </p>
+                            </div>
+                            <Badge variant={invitation.used ? "secondary" : "default"}>
+                              {invitation.used ? "Used" : "Active"}
+                            </Badge>
+                          </div>
+                          
+                          {!invitation.used && (
+                            <div className="mt-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  const url = `${window.location.origin}/register?token=${invitation.token}`;
+                                  navigator.clipboard.writeText(url);
+                                  toast({
+                                    title: "Copied!",
+                                    description: "Invitation link copied to clipboard",
+                                  });
+                                }}
+                              >
+                                Copy Invitation Link
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
