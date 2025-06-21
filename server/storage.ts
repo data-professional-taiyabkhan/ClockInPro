@@ -7,14 +7,26 @@ import MemoryStore from "memorystore";
 const MemoryStoreSession = MemoryStore(session);
 
 export interface IStorage {
+  // User operations
   getUser(id: number): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
-  updateUserFaceData(userId: number, faceData: string): Promise<User>;
+  updateUserFaceImage(userId: number, faceImageUrl: string): Promise<User>;
+  getAllEmployees(): Promise<User[]>;
+  
+  // Attendance operations
   createAttendanceRecord(record: InsertAttendanceRecord): Promise<AttendanceRecord>;
   updateAttendanceRecord(id: number, updates: Partial<AttendanceRecord>): Promise<AttendanceRecord>;
   getUserAttendanceRecords(userId: number, limit?: number): Promise<AttendanceRecord[]>;
   getTodayAttendanceRecord(userId: number, date: string): Promise<AttendanceRecord | undefined>;
+  getAllAttendanceRecords(limit?: number): Promise<AttendanceRecord[]>;
+  
+  // Location operations
+  createLocation(location: InsertLocation): Promise<Location>;
+  getActiveLocations(): Promise<Location[]>;
+  getLocationByPostcode(postcode: string): Promise<Location | undefined>;
+  updateLocation(id: number, updates: Partial<Location>): Promise<Location>;
+  
   sessionStore: any;
 }
 

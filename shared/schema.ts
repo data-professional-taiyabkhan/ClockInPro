@@ -27,12 +27,28 @@ export const attendanceRecords = pgTable("attendance_records", {
 
 export const usersRelations = relations(users, ({ many }) => ({
   attendanceRecords: many(attendanceRecords),
+  approvedRecords: many(attendanceRecords, {
+    relationName: "approvedBy"
+  }),
+}));
+
+export const locationsRelations = relations(locations, ({ many }) => ({
+  attendanceRecords: many(attendanceRecords),
 }));
 
 export const attendanceRecordsRelations = relations(attendanceRecords, ({ one }) => ({
   user: one(users, {
     fields: [attendanceRecords.userId],
     references: [users.id],
+  }),
+  location: one(locations, {
+    fields: [attendanceRecords.locationId],
+    references: [locations.id],
+  }),
+  approvedBy: one(users, {
+    fields: [attendanceRecords.manuallyApprovedBy],
+    references: [users.id],
+    relationName: "approvedBy"
   }),
 }));
 
