@@ -254,28 +254,27 @@ export default function EmployeeDashboard() {
           </Button>
         </div>
 
-        {/* Face Registration */}
+        {/* Face Registration Status */}
         {!user.faceImageUrl && (
           <Alert>
             <Camera className="h-4 w-4" />
             <AlertDescription>
-              You haven't registered your face yet. Please upload a clear photo of your face to enable check-in.
+              Your face image hasn't been registered yet. Please contact your manager to set up your face image for check-in.
+            </AlertDescription>
+          </Alert>
+        )}
+        
+        {user.faceImageUrl && (
+          <Alert>
+            <Camera className="h-4 w-4" />
+            <AlertDescription>
+              Face image registered successfully. You can now use face check-in.
               <div className="mt-2">
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleFileUpload}
-                  ref={fileInputRef}
-                  className="hidden"
+                <img 
+                  src={user.faceImageUrl} 
+                  alt="Your registered face"
+                  className="w-16 h-16 rounded-full object-cover border"
                 />
-                <Button
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={uploadFaceMutation.isPending}
-                  size="sm"
-                >
-                  <Upload className="h-4 w-4 mr-2" />
-                  {uploadFaceMutation.isPending ? "Uploading..." : "Upload Face Photo"}
-                </Button>
               </div>
             </AlertDescription>
           </Alert>
@@ -329,12 +328,16 @@ export default function EmployeeDashboard() {
 
                   {isCapturing && (
                     <div className="space-y-2">
-                      <video
-                        ref={videoRef}
-                        autoPlay
-                        playsInline
-                        className="w-full max-w-sm mx-auto rounded-lg"
-                      />
+                      <div className="flex justify-center">
+                        <video
+                          ref={videoRef}
+                          autoPlay
+                          playsInline
+                          muted
+                          style={{ width: '300px', height: '225px' }}
+                          className="rounded-lg border-2 border-gray-300"
+                        />
+                      </div>
                       <Button onClick={captureImage} className="w-full">
                         Capture Face
                       </Button>

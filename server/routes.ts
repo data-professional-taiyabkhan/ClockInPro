@@ -105,10 +105,11 @@ export function registerRoutes(app: Express): Server {
     res.json(safeUser);
   });
 
-  // Face image upload and management
-  app.post("/api/upload-face-image", requireAuth, async (req, res) => {
+  // Manager-only employee face image management
+  app.post("/api/employees/:id/face-image", requireManager, async (req, res) => {
     try {
       const { imageData } = req.body;
+      const employeeId = parseInt(req.params.id);
       
       if (!imageData || !imageData.startsWith('data:image/')) {
         return res.status(400).json({ message: "Invalid image data" });
@@ -126,12 +127,12 @@ export function registerRoutes(app: Express): Server {
         console.log("AWS validation unavailable, proceeding with basic validation");
       }
 
-      // Update user with face image URL
-      const updatedUser = await storage.updateUserFaceImage(req.user!.id, imageData);
+      // Update employee with face image URL
+      const updatedUser = await storage.updateUserFaceImage(employeeId, imageData);
       
       const { password: _, ...safeUser } = updatedUser;
       res.json({
-        message: "Face image uploaded successfully",
+        message: "Employee face image updated successfully",
         user: safeUser
       });
     } catch (error) {

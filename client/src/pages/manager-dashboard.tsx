@@ -459,15 +459,58 @@ export default function ManagerDashboard() {
                           </div>
                         </div>
 
-                        {employee.faceImageUrl && (
-                          <div className="mt-2">
+                        <div className="mt-2 space-y-2">
+                          {employee.faceImageUrl && (
                             <img 
                               src={employee.faceImageUrl} 
                               alt="Employee face"
                               className="w-16 h-16 rounded-full object-cover border"
                             />
+                          )}
+                          
+                          <div className="flex gap-1">
+                            <input
+                              type="file"
+                              accept="image/*"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) {
+                                  const reader = new FileReader();
+                                  reader.onload = async (event) => {
+                                    const imageData = event.target?.result as string;
+                                    try {
+                                      await apiRequest(`/api/employees/${employee.id}/face-image`, {
+                                        method: "POST",
+                                        body: JSON.stringify({ imageData }),
+                                      });
+                                      toast({
+                                        title: "Success",
+                                        description: "Employee face image updated",
+                                      });
+                                      queryClient.invalidateQueries({ queryKey: ["/api/employees"] });
+                                    } catch (error: any) {
+                                      toast({
+                                        title: "Failed",
+                                        description: error.message,
+                                        variant: "destructive",
+                                      });
+                                    }
+                                  };
+                                  reader.readAsDataURL(file);
+                                }
+                              }}
+                              className="hidden"
+                              id={`face-upload-${employee.id}`}
+                            />
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => document.getElementById(`face-upload-${employee.id}`)?.click()}
+                            >
+                              {employee.faceImageUrl ? "Update Face" : "Add Face"}
+                            </Button>
                           </div>
-                        )}
+                        </div>
                       </div>
                     ))}
                   </div>
