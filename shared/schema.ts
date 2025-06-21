@@ -51,6 +51,17 @@ export const attendanceRecords = pgTable("attendance_records", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+export const employeeInvitations = pgTable("employee_invitations", {
+  id: serial("id").primaryKey(),
+  email: varchar("email").notNull(),
+  token: varchar("token").unique().notNull(),
+  role: varchar("role").default("employee"),
+  invitedBy: integer("invited_by").references(() => users.id),
+  expiresAt: timestamp("expires_at").notNull(),
+  used: boolean("used").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 export const usersRelations = relations(users, ({ many }) => ({
   attendanceRecords: many(attendanceRecords),
   approvedRecords: many(attendanceRecords, {
@@ -78,6 +89,13 @@ export const attendanceRecordsRelations = relations(attendanceRecords, ({ one })
   }),
 }));
 
+export const employeeInvitationsRelations = relations(employeeInvitations, ({ one }) => ({
+  invitedBy: one(users, {
+    fields: [employeeInvitations.invitedBy],
+    references: [users.id],
+  }),
+}));
+
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
   createdAt: true,
@@ -93,6 +111,12 @@ export const insertAttendanceRecordSchema = createInsertSchema(attendanceRecords
 export const insertLocationSchema = createInsertSchema(locations).omit({
   id: true,
   createdAt: true,
+});
+
+export const insertInvitationSchema = createInsertSchema(employeeInvitations).omit({
+  id: true,
+  createdAt: true,
+  token: true,
 });
 
 // Login schemas
@@ -114,5 +138,7 @@ export type AttendanceRecord = typeof attendanceRecords.$inferSelect;
 export type InsertAttendanceRecord = z.infer<typeof insertAttendanceRecordSchema>;
 export type Location = typeof locations.$inferSelect;
 export type InsertLocation = z.infer<typeof insertLocationSchema>;
+export type EmployeeInvitation = typeof employeeInvitations.$inferSelect;
+export type InsertInvitation = z.infer<typeof insertInvitationSchema>;
 export type LoginData = z.infer<typeof loginSchema>;
 export type RegisterData = z.infer<typeof registerSchema>;

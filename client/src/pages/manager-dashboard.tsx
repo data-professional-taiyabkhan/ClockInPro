@@ -326,35 +326,65 @@ export default function ManagerDashboard() {
 
             <Card>
               <CardContent className="p-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {employees?.map((employee: any) => (
-                    <div
-                      key={employee.id}
-                      className="p-4 border rounded-lg space-y-2"
-                    >
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <h3 className="font-medium">
-                            {employee.firstName} {employee.lastName}
-                          </h3>
-                          <p className="text-sm text-gray-600 dark:text-gray-400">
-                            {employee.email}
-                          </p>
+                <div className="space-y-4">
+                  <div className="text-lg font-medium">
+                    Total Employees: {employees?.length || 0}
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {employees?.map((employee: any) => (
+                      <div
+                        key={employee.id}
+                        className="p-4 border rounded-lg space-y-2"
+                      >
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <h3 className="font-medium">
+                              {employee.firstName} {employee.lastName}
+                            </h3>
+                            <p className="text-sm text-gray-600 dark:text-gray-400">
+                              {employee.email}
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              ID: {employee.id}
+                            </p>
+                          </div>
+                          <Badge variant={employee.role === "manager" ? "secondary" : "default"}>
+                            {employee.role}
+                          </Badge>
                         </div>
-                        <Badge variant={employee.role === "manager" ? "secondary" : "default"}>
-                          {employee.role}
-                        </Badge>
+                        
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <div className={`w-2 h-2 rounded-full ${
+                              employee.faceImageUrl ? "bg-green-500" : "bg-yellow-500"
+                            }`} />
+                            <span className="text-xs text-gray-600 dark:text-gray-400">
+                              {employee.faceImageUrl ? "Face registered" : "No face image"}
+                            </span>
+                          </div>
+                          
+                          <div className="flex items-center gap-2">
+                            <div className={`w-2 h-2 rounded-full ${
+                              employee.isActive ? "bg-green-500" : "bg-red-500"
+                            }`} />
+                            <span className="text-xs text-gray-600 dark:text-gray-400">
+                              {employee.isActive ? "Active" : "Inactive"}
+                            </span>
+                          </div>
+                        </div>
+
+                        {employee.faceImageUrl && (
+                          <div className="mt-2">
+                            <img 
+                              src={employee.faceImageUrl} 
+                              alt="Employee face"
+                              className="w-16 h-16 rounded-full object-cover border"
+                            />
+                          </div>
+                        )}
                       </div>
-                      <div className="flex items-center gap-2">
-                        <div className={`w-2 h-2 rounded-full ${
-                          employee.faceImageUrl ? "bg-green-500" : "bg-yellow-500"
-                        }`} />
-                        <span className="text-xs text-gray-600 dark:text-gray-400">
-                          {employee.faceImageUrl ? "Face registered" : "No face image"}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
               </CardContent>
             </Card>

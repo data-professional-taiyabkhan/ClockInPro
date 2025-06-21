@@ -2,7 +2,9 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { setupAuth, requireAuth, requireManager, requireAdmin, hashPassword, comparePasswords } from "./auth";
 import { storage } from "./storage";
-import { insertAttendanceRecordSchema, loginSchema, registerSchema } from "@shared/schema";
+import { insertAttendanceRecordSchema, loginSchema, registerSchema, users } from "@shared/schema";
+import { desc } from "drizzle-orm";
+import { db } from "./db";
 import { format, differenceInMinutes } from "date-fns";
 import { rekognitionService } from "./aws-rekognition";
 
@@ -370,13 +372,15 @@ export function registerRoutes(app: Express): Server {
   // Employee management (Manager/Admin only)
   app.get("/api/employees", requireManager, async (req, res) => {
     try {
-      const employees = await storage.getAllEmployees();
+      // Get all users for managers/admins to see
+      const allUsers = await db.select().from(users).orderBy(desc(users.createdAt));
+      
       // Remove passwords from response
-      const safeEmployees = employees.map(emp => {
-        const { password: _, ...safeEmp } = emp;
-        return safeEmp;
+      const safeUsers = allUsers.map(user => {
+        const { password: _, ...safeUser } = user;
+        return safeUser;
       });
-      res.json(safeEmployees);
+      res.json(safeUsers);
     } catch (error) {
       console.error("Get employees error:", error);
       res.status(500).json({ message: "Failed to get employees" });

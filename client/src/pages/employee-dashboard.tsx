@@ -318,7 +318,7 @@ export default function EmployeeDashboard() {
             </div>
 
             <div className="mt-4 space-y-2">
-              {user.faceImageUrl && !todayAttendance?.isClockedIn && (
+              {user.faceImageUrl && !todayAttendance?.isClockedIn ? (
                 <div className="space-y-2">
                   {!isCapturing && !capturedImage && (
                     <Button onClick={startCamera} className="w-full">
@@ -369,7 +369,7 @@ export default function EmployeeDashboard() {
                     </div>
                   )}
                 </div>
-              )}
+              ) : null}
 
               {todayAttendance?.isClockedIn && (
                 <Button
