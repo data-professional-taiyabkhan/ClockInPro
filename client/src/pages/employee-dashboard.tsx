@@ -25,6 +25,7 @@ export default function EmployeeDashboard() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -177,6 +178,9 @@ export default function EmployeeDashboard() {
   const startCamera = async () => {
     try {
       console.log('Starting camera...');
+      setIsCapturing(true);
+      console.log('Set isCapturing to true');
+      
       const stream = await navigator.mediaDevices.getUserMedia({ 
         video: { 
           width: 640, 
@@ -185,23 +189,26 @@ export default function EmployeeDashboard() {
         } 
       });
       console.log('Camera stream obtained:', stream);
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        setIsCapturing(true);
-        console.log('isCapturing set to true');
-        try {
-          await videoRef.current.play();
-          console.log('Video play started successfully');
-        } catch (playError) {
-          console.log('Video play error (non-critical):', playError);
+      streamRef.current = stream;
+      
+      // Wait for next render cycle
+      setTimeout(() => {
+        if (videoRef.current && streamRef.current) {
+          videoRef.current.srcObject = streamRef.current;
+          videoRef.current.play().then(() => {
+            console.log('Video playing successfully');
+            getUserLocation();
+          }).catch((playError) => {
+            console.log('Video play error:', playError);
+          });
+        } else {
+          console.log('videoRef or stream not available after timeout');
         }
-        getUserLocation();
-        console.log('Camera started successfully');
-      } else {
-        console.log('videoRef.current is null');
-      }
+      }, 100);
+      
     } catch (error) {
       console.error('Error accessing camera:', error);
+      setIsCapturing(false);
       toast({
         title: "Camera Error",
         description: "Could not access camera. Please allow camera permissions.",
@@ -342,16 +349,48 @@ export default function EmployeeDashboard() {
               {user.faceImageUrl && !todayAttendance?.isClockedIn ? (
                 <div className="space-y-2">
                   {!isCapturing && !capturedImage && (
-                    <Button 
-                      onClick={() => {
-                        console.log('Face check-in button clicked, current isCapturing:', isCapturing);
-                        startCamera();
-                      }} 
-                      className="w-full"
-                    >
-                      <Camera className="h-4 w-4 mr-2" />
-                      Start Face Check-In
-                    </Button>
+                    <div className="space-y-2">
+                      <Button 
+                        onClick={() => {
+                          console.log('Face check-in button clicked, current isCapturing:', isCapturing);
+                          startCamera();
+                        }} 
+                        className="w-full"
+                      >
+                        <Camera className="h-4 w-4 mr-2" />
+                        Start Face Check-In
+                      </Button>
+                      
+                      <div className="text-center text-sm text-gray-500">or</div>
+                      
+                      <input
+                        type="file"
+                        accept="image/*"
+                        capture="user"
+                        ref={fileInputRef}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            const reader = new FileReader();
+                            reader.onload = (event) => {
+                              if (event.target?.result) {
+                                setCapturedImage(event.target.result as string);
+                              }
+                            };
+                            reader.readAsDataURL(file);
+                          }
+                        }}
+                        className="hidden"
+                      />
+                      <Button 
+                        variant="outline"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="w-full"
+                      >
+                        <Camera className="h-4 w-4 mr-2" />
+                        Take Photo with Camera
+                      </Button>
+                    </div>
                   )}
 
                   {isCapturing && (
