@@ -187,10 +187,18 @@ export default function EmployeeDashboard() {
       console.log('Camera stream obtained:', stream);
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        await videoRef.current.play();
         setIsCapturing(true);
+        console.log('isCapturing set to true');
+        try {
+          await videoRef.current.play();
+          console.log('Video play started successfully');
+        } catch (playError) {
+          console.log('Video play error (non-critical):', playError);
+        }
         getUserLocation();
-        console.log('Camera started successfully, isCapturing set to true');
+        console.log('Camera started successfully');
+      } else {
+        console.log('videoRef.current is null');
       }
     } catch (error) {
       console.error('Error accessing camera:', error);
@@ -357,9 +365,9 @@ export default function EmployeeDashboard() {
                           autoPlay
                           playsInline
                           muted
+                          width="300"
+                          height="225"
                           style={{ 
-                            width: '300px', 
-                            height: '225px',
                             backgroundColor: '#000',
                             display: 'block'
                           }}
