@@ -8,6 +8,7 @@ import { db } from "./db";
 import crypto from "crypto";
 import { format, differenceInMinutes } from "date-fns";
 import { rekognitionService } from "./aws-rekognition";
+import { pythonFaceService } from "./python-face-service";
 
 // Enhanced fallback image comparison using Sharp for better analysis
 async function compareImages(registeredImageData: string, capturedImageData: string): Promise<boolean> {
