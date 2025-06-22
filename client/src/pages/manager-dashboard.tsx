@@ -29,27 +29,32 @@ export default function ManagerDashboard() {
   // Get current user
   const { data: user } = useQuery({
     queryKey: ["/api/user"],
+    queryFn: () => apiRequest("/api/user"),
   });
 
   // Get employees
   const { data: employees, isLoading: employeesLoading, error: employeesError } = useQuery({
     queryKey: ["/api/employees"],
+    queryFn: () => apiRequest("/api/employees"),
     retry: 2,
   });
 
   // Get locations
   const { data: locations } = useQuery({
     queryKey: ["/api/locations"],
+    queryFn: () => apiRequest("/api/locations"),
   });
 
   // Get attendance records
   const { data: attendanceRecords } = useQuery({
     queryKey: ["/api/attendance"],
+    queryFn: () => apiRequest("/api/attendance"),
   });
 
   // Get invitations
   const { data: invitations } = useQuery({
     queryKey: ["/api/invitations"],
+    queryFn: () => apiRequest("/api/invitations"),
   });
 
   // Employee registration form

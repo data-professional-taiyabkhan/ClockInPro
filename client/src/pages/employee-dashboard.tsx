@@ -29,16 +29,19 @@ export default function EmployeeDashboard() {
   // Get current user
   const { data: user } = useQuery({
     queryKey: ["/api/user"],
+    queryFn: () => apiRequest("/api/user"),
   });
 
   // Get today's attendance
   const { data: todayAttendance } = useQuery({
     queryKey: ["/api/attendance/today"],
+    queryFn: () => apiRequest("/api/attendance/today"),
   });
 
   // Get recent attendance records
   const { data: attendanceRecords } = useQuery({
     queryKey: ["/api/attendance"],
+    queryFn: () => apiRequest("/api/attendance"),
   });
 
   // Get user location
