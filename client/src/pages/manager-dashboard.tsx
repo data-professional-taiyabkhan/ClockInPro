@@ -32,8 +32,9 @@ export default function ManagerDashboard() {
   });
 
   // Get employees
-  const { data: employees } = useQuery({
+  const { data: employees, isLoading: employeesLoading, error: employeesError } = useQuery({
     queryKey: ["/api/employees"],
+    retry: 2,
   });
 
   // Get locations
@@ -422,11 +423,26 @@ export default function ManagerDashboard() {
                   <div className="text-lg font-medium">
                     Total Users: {employees?.length || 0}
                   </div>
-                  {employees?.length === 0 ? (
+                  
+                  {employeesLoading && (
+                    <div className="text-center py-8 text-gray-500">
+                      Loading employees...
+                    </div>
+                  )}
+                  
+                  {employeesError && (
+                    <div className="text-center py-8 text-red-500">
+                      Error loading employees: {employeesError.message}
+                    </div>
+                  )}
+                  
+                  {!employeesLoading && !employeesError && employees?.length === 0 && (
                     <div className="text-center py-8 text-gray-500">
                       No users found. Add employees using the buttons above.
                     </div>
-                  ) : (
+                  )}
+                  
+                  {!employeesLoading && !employeesError && employees && employees.length > 0 && (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                       {employees?.map((employee: any) => (
                       <div
