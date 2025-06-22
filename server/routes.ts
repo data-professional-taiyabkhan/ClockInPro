@@ -370,24 +370,23 @@ export function registerRoutes(app: Express): Server {
   app.post("/api/clock-out", requireAuth, async (req, res) => {
     try {
       const today = format(new Date(), "yyyy-MM-dd");
-      const existingRecord = await storage.getTodayAttendanceRecord(req.user!.id, today);
+      
+      // Get all attendance records and find the most recent one without clock-out
+      const records = await storage.getUserAttendanceRecords(req.user!.id, 20);
+      const todayRecords = records.filter(record => record.date === today);
+      const activeRecord = todayRecords.find(record => !record.clockOutTime);
 
-      if (!existingRecord) {
-        return res.status(400).json({ message: "No clock-in record found for today" });
-      }
-
-      if (existingRecord.clockOutTime) {
-        return res.status(400).json({ message: "Already clocked out today" });
+      if (!activeRecord) {
+        return res.status(400).json({ message: "No active clock-in found for today" });
       }
 
       const clockOutTime = new Date();
-      const totalMinutes = differenceInMinutes(clockOutTime, existingRecord.clockInTime);
-      const hours = Math.floor(totalMinutes / 60);
-      const minutes = totalMinutes % 60;
+      const totalMinutes = differenceInMinutes(clockOutTime, new Date(activeRecord.clockInTime));
+      const totalHours = (totalMinutes / 60).toFixed(2);
 
-      const updatedRecord = await storage.updateAttendanceRecord(existingRecord.id, {
+      const updatedRecord = await storage.updateAttendanceRecord(activeRecord.id, {
         clockOutTime,
-        totalHours: `${hours}h ${minutes}m`
+        totalHours: parseFloat(totalHours)
       });
 
       res.json(updatedRecord);
@@ -416,6 +415,43 @@ export function registerRoutes(app: Express): Server {
     } catch (error) {
       console.error("Manual clock in error:", error);
       res.status(500).json({ message: "Failed to manually clock in user" });
+    }
+  });
+
+  // Manual clock-out for managers
+  app.post("/api/manual-clock-out", requireManager, async (req, res) => {
+    try {
+      const { userId, clockOutTime, notes } = req.body;
+      
+      if (!userId) {
+        return res.status(400).json({ message: "User ID is required" });
+      }
+
+      const today = format(new Date(), "yyyy-MM-dd");
+      
+      // Find the most recent active record for the user
+      const records = await storage.getUserAttendanceRecords(userId, 20);
+      const todayRecords = records.filter(record => record.date === today);
+      const activeRecord = todayRecords.find(record => !record.clockOutTime);
+
+      if (!activeRecord) {
+        return res.status(400).json({ message: "No active clock-in found for this user today" });
+      }
+
+      const finalClockOutTime = clockOutTime ? new Date(clockOutTime) : new Date();
+      const totalMinutes = differenceInMinutes(finalClockOutTime, new Date(activeRecord.clockInTime));
+      const totalHours = (totalMinutes / 60).toFixed(2);
+
+      const updatedRecord = await storage.updateAttendanceRecord(activeRecord.id, {
+        clockOutTime: finalClockOutTime,
+        totalHours: parseFloat(totalHours),
+        notes: notes || activeRecord.notes
+      });
+
+      res.json(updatedRecord);
+    } catch (error) {
+      console.error("Manual clock out error:", error);
+      res.status(500).json({ message: "Failed to manually clock out user" });
     }
   });
 
