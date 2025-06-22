@@ -346,7 +346,7 @@ export default function EmployeeDashboard() {
             </div>
 
             <div className="mt-4 space-y-2">
-              {user.faceImageUrl && !todayAttendance?.isClockedIn ? (
+              {user.faceImageUrl && !todayAttendance?.isClockedIn && !todayAttendance?.record?.clockInTime ? (
                 <div className="space-y-2">
                   {!isCapturing && !capturedImage && (
                     <div className="space-y-2">

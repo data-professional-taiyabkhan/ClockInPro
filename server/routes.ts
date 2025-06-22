@@ -238,12 +238,41 @@ export function registerRoutes(app: Express): Server {
         }
       } catch (error) {
         console.error("Face verification error:", error);
-        // Fallback to allowing check-in if AWS is unavailable but user has registered face
-        res.json({ 
-          verified: true, 
-          message: "Face verification completed (backup system)",
-          location: userLocation?.postcode 
-        });
+        
+        // Enhanced fallback verification using image analysis
+        try {
+          const registeredImage = req.user.faceImageUrl;
+          const capturedImage = imageData;
+          
+          // Check if captured image appears to contain a face (basic validation)
+          const capturedBase64 = capturedImage.replace(/^data:image\/[a-z]+;base64,/, '');
+          if (capturedBase64.length < 1000) {
+            return res.status(400).json({
+              verified: false,
+              message: "Image appears to be too small or invalid"
+            });
+          }
+          
+          const isVerified = await compareImages(registeredImage, capturedImage);
+          
+          if (isVerified) {
+            res.json({
+              verified: true,
+              message: "Face verification successful (enhanced mode)",
+            });
+          } else {
+            res.status(400).json({
+              verified: false,
+              message: "Face verification failed - images do not match sufficiently"
+            });
+          }
+        } catch (fallbackError) {
+          console.error("Fallback verification error:", fallbackError);
+          res.status(400).json({
+            verified: false,
+            message: "Face verification failed - unable to process images"
+          });
+        }
       }
     } catch (error) {
       console.error("Face verification error:", error);
