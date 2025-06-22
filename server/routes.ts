@@ -12,7 +12,7 @@ import { rekognitionService } from "./aws-rekognition";
 // Enhanced image comparison using Sharp for better analysis
 async function compareImages(registeredImageData: string, capturedImageData: string): Promise<boolean> {
   try {
-    const sharp = require('sharp');
+    const sharp = await import('sharp');
     
     // Convert base64 to buffers
     const registeredBase64 = registeredImageData.replace(/^data:image\/[a-z]+;base64,/, '');
@@ -23,13 +23,13 @@ async function compareImages(registeredImageData: string, capturedImageData: str
     
     // Resize both images to same dimensions for comparison
     const size = 100;
-    const registeredProcessed = await sharp(registeredBuffer)
+    const registeredProcessed = await sharp.default(registeredBuffer)
       .resize(size, size)
       .greyscale()
       .raw()
       .toBuffer();
       
-    const capturedProcessed = await sharp(capturedBuffer)
+    const capturedProcessed = await sharp.default(capturedBuffer)
       .resize(size, size)
       .greyscale()
       .raw()
@@ -446,6 +446,59 @@ export function registerRoutes(app: Express): Server {
     } catch (error) {
       console.error("Get today attendance error:", error);
       res.status(500).json({ message: "Failed to get today's attendance" });
+    }
+  });
+
+  // Delete user with role-based permissions
+  app.delete("/api/users/:id", requireAuth, async (req, res) => {
+    try {
+      const userId = parseInt(req.params.id);
+      
+      if (isNaN(userId)) {
+        return res.status(400).json({ message: "Invalid user ID" });
+      }
+
+      // Check if user exists
+      const targetUser = await storage.getUser(userId);
+      if (!targetUser) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      // Prevent deleting yourself
+      if (userId === req.user!.id) {
+        return res.status(400).json({ message: "Cannot delete your own account" });
+      }
+
+      // Role-based deletion permissions
+      const currentUserRole = req.user!.role;
+      const targetUserRole = targetUser.role;
+
+      // No one can delete admin
+      if (targetUserRole === "admin") {
+        return res.status(403).json({ message: "Cannot delete admin users" });
+      }
+
+      // Only admin can delete managers
+      if (targetUserRole === "manager" && currentUserRole !== "admin") {
+        return res.status(403).json({ message: "Only admin can delete managers" });
+      }
+
+      // Managers can only delete employees, admins can delete anyone (except admin)
+      if (currentUserRole === "manager" && targetUserRole !== "employee") {
+        return res.status(403).json({ message: "Managers can only delete employees" });
+      }
+
+      // Employees cannot delete anyone
+      if (currentUserRole === "employee") {
+        return res.status(403).json({ message: "Employees cannot delete users" });
+      }
+
+      await storage.deleteUser(userId);
+      console.log(`User ${targetUser.email} (${targetUserRole}) deleted by ${req.user!.email} (${currentUserRole})`);
+      res.json({ message: "User deleted successfully" });
+    } catch (error) {
+      console.error("Delete user error:", error);
+      res.status(500).json({ message: "Failed to delete user" });
     }
   });
 
