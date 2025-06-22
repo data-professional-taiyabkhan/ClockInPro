@@ -8,7 +8,6 @@ import { db } from "./db";
 import crypto from "crypto";
 import { format, differenceInMinutes } from "date-fns";
 import { rekognitionService } from "./aws-rekognition";
-import { pythonFaceService } from "./python-face-service";
 
 // Enhanced fallback image comparison using Sharp for better analysis
 async function compareImages(registeredImageData: string, capturedImageData: string): Promise<boolean> {
@@ -39,8 +38,8 @@ async function compareImages(registeredImageData: string, capturedImageData: str
     
     console.log(`Enhanced image comparison - Full: ${(fullSimilarity * 100).toFixed(1)}%, Face: ${(faceSimilarity * 100).toFixed(1)}%, Edge: ${(edgeSimilarity * 100).toFixed(1)}%, Weighted: ${(weightedSimilarity * 100).toFixed(1)}%`);
     
-    // More strict requirement when using fallback method
-    return weightedSimilarity > 0.80;
+    // Much more lenient threshold for same person recognition
+    return weightedSimilarity > 0.60;
     
   } catch (error) {
     console.error('Enhanced image comparison error:', error);
