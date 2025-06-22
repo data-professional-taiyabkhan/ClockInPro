@@ -9,7 +9,7 @@ import crypto from "crypto";
 import { format, differenceInMinutes } from "date-fns";
 import { rekognitionService } from "./aws-rekognition";
 
-// Enhanced image comparison using Sharp for better analysis
+// Enhanced fallback image comparison using Sharp for better analysis
 async function compareImages(registeredImageData: string, capturedImageData: string): Promise<boolean> {
   try {
     const sharp = await import('sharp');
@@ -21,40 +21,112 @@ async function compareImages(registeredImageData: string, capturedImageData: str
     const registeredBuffer = Buffer.from(registeredBase64, 'base64');
     const capturedBuffer = Buffer.from(capturedBase64, 'base64');
     
-    // Resize both images to same dimensions for comparison
-    const size = 100;
-    const registeredProcessed = await sharp.default(registeredBuffer)
-      .resize(size, size)
-      .greyscale()
-      .raw()
-      .toBuffer();
-      
-    const capturedProcessed = await sharp.default(capturedBuffer)
-      .resize(size, size)
-      .greyscale()
-      .raw()
-      .toBuffer();
+    // Multiple comparison approaches for better accuracy
+    const results = await Promise.all([
+      // 1. Full image comparison
+      compareImageBuffers(sharp, registeredBuffer, capturedBuffer, 200),
+      // 2. Center face region comparison
+      compareImageBuffers(sharp, registeredBuffer, capturedBuffer, 150, true),
+      // 3. Edge detection comparison
+      compareEdgeDetection(sharp, registeredBuffer, capturedBuffer),
+    ]);
     
-    // Calculate pixel difference
-    let totalDiff = 0;
-    const totalPixels = size * size;
+    const [fullSimilarity, faceSimilarity, edgeSimilarity] = results;
     
-    for (let i = 0; i < totalPixels; i++) {
-      totalDiff += Math.abs(registeredProcessed[i] - capturedProcessed[i]);
-    }
+    // Weighted average with higher weight on face region
+    const weightedSimilarity = (fullSimilarity * 0.3 + faceSimilarity * 0.5 + edgeSimilarity * 0.2);
     
-    const avgDiff = totalDiff / totalPixels / 255; // Normalize to 0-1
-    const similarity = 1 - avgDiff;
+    console.log(`Enhanced image comparison - Full: ${(fullSimilarity * 100).toFixed(1)}%, Face: ${(faceSimilarity * 100).toFixed(1)}%, Edge: ${(edgeSimilarity * 100).toFixed(1)}%, Weighted: ${(weightedSimilarity * 100).toFixed(1)}%`);
     
-    console.log(`Enhanced image comparison - Similarity: ${(similarity * 100).toFixed(1)}%`);
-    
-    // Require 75% similarity for verification
-    return similarity > 0.75;
+    // More strict requirement when using fallback method
+    return weightedSimilarity > 0.80;
     
   } catch (error) {
     console.error('Enhanced image comparison error:', error);
     return false; // Fail secure - don't allow if comparison fails
   }
+}
+
+async function compareImageBuffers(sharp: any, buffer1: Buffer, buffer2: Buffer, size: number, centerCrop: boolean = false): Promise<number> {
+  let processed1, processed2;
+  
+  if (centerCrop) {
+    // Focus on center region (face area)
+    const cropSize = Math.floor(size * 0.7);
+    const offset = Math.floor((size - cropSize) / 2);
+    
+    processed1 = await sharp.default(buffer1)
+      .resize(size, size)
+      .extract({ left: offset, top: offset, width: cropSize, height: cropSize })
+      .greyscale()
+      .raw()
+      .toBuffer();
+      
+    processed2 = await sharp.default(buffer2)
+      .resize(size, size)
+      .extract({ left: offset, top: offset, width: cropSize, height: cropSize })
+      .greyscale()
+      .raw()
+      .toBuffer();
+  } else {
+    processed1 = await sharp.default(buffer1)
+      .resize(size, size)
+      .greyscale()
+      .raw()
+      .toBuffer();
+      
+    processed2 = await sharp.default(buffer2)
+      .resize(size, size)
+      .greyscale()
+      .raw()
+      .toBuffer();
+  }
+  
+  // Calculate pixel difference
+  let totalDiff = 0;
+  const totalPixels = processed1.length;
+  
+  for (let i = 0; i < totalPixels; i++) {
+    totalDiff += Math.abs(processed1[i] - processed2[i]);
+  }
+  
+  const avgDiff = totalDiff / totalPixels / 255;
+  return 1 - avgDiff;
+}
+
+async function compareEdgeDetection(sharp: any, buffer1: Buffer, buffer2: Buffer): Promise<number> {
+  // Apply edge detection to focus on facial features
+  const edges1 = await sharp.default(buffer1)
+    .resize(150, 150)
+    .greyscale()
+    .convolve({
+      width: 3,
+      height: 3,
+      kernel: [-1, -1, -1, -1, 8, -1, -1, -1, -1]
+    })
+    .raw()
+    .toBuffer();
+    
+  const edges2 = await sharp.default(buffer2)
+    .resize(150, 150)
+    .greyscale()
+    .convolve({
+      width: 3,
+      height: 3,
+      kernel: [-1, -1, -1, -1, 8, -1, -1, -1, -1]
+    })
+    .raw()
+    .toBuffer();
+  
+  let totalDiff = 0;
+  const totalPixels = edges1.length;
+  
+  for (let i = 0; i < totalPixels; i++) {
+    totalDiff += Math.abs(edges1[i] - edges2[i]);
+  }
+  
+  const avgDiff = totalDiff / totalPixels / 255;
+  return 1 - avgDiff;
 }
 
 // UK Postcode validation regex
