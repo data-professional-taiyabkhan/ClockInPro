@@ -361,35 +361,7 @@ export default function EmployeeDashboard() {
                         Start Face Check-In
                       </Button>
                       
-                      <div className="text-center text-sm text-gray-500">or</div>
-                      
-                      <input
-                        type="file"
-                        accept="image/*"
-                        capture="user"
-                        ref={fileInputRef}
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) {
-                            const reader = new FileReader();
-                            reader.onload = (event) => {
-                              if (event.target?.result) {
-                                setCapturedImage(event.target.result as string);
-                              }
-                            };
-                            reader.readAsDataURL(file);
-                          }
-                        }}
-                        className="hidden"
-                      />
-                      <Button 
-                        variant="outline"
-                        onClick={() => fileInputRef.current?.click()}
-                        className="w-full"
-                      >
-                        <Camera className="h-4 w-4 mr-2" />
-                        Take Photo with Camera
-                      </Button>
+
                     </div>
                   )}
 
