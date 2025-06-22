@@ -542,17 +542,23 @@ export default function ManagerDashboard() {
                               {employee.faceImageUrl ? "Update Face" : "Add Face"}
                             </Button>
                             
-                            <Button
-                              size="sm"
-                              variant="destructive"
-                              onClick={() => {
-                                if (confirm(`Are you sure you want to delete ${employee.firstName} ${employee.lastName}? This action cannot be undone.`)) {
-                                  deleteUserMutation.mutate(employee.id);
-                                }
-                              }}
-                            >
-                              Delete User
-                            </Button>
+                            {/* Delete button with role-based permissions */}
+                            {((user?.role === "admin") || 
+                              (user?.role === "manager" && employee.role === "employee")) && 
+                              employee.role !== "admin" && (
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                onClick={() => {
+                                  if (confirm(`Are you sure you want to delete ${employee.firstName} ${employee.lastName}? This action cannot be undone.`)) {
+                                    deleteUserMutation.mutate(employee.id);
+                                  }
+                                }}
+                                disabled={deleteUserMutation.isPending}
+                              >
+                                {deleteUserMutation.isPending ? "Deleting..." : "Delete User"}
+                              </Button>
+                            )}
                           </div>
                         </div>
                       </div>
