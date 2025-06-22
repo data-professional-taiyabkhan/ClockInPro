@@ -9,6 +9,92 @@ import crypto from "crypto";
 import { format, differenceInMinutes } from "date-fns";
 import { rekognitionService } from "./aws-rekognition";
 
+// Basic face detection using image analysis
+async function detectFaceInImage(imageData: string): Promise<boolean> {
+  try {
+    const sharp = await import('sharp');
+    
+    // Convert base64 to buffer
+    const base64 = imageData.replace(/^data:image\/[a-z]+;base64,/, '');
+    const buffer = Buffer.from(base64, 'base64');
+    
+    // Get image metadata and statistics
+    const image = sharp.default(buffer);
+    const { width, height } = await image.metadata();
+    
+    if (!width || !height || width < 100 || height < 100) {
+      return false; // Image too small
+    }
+    
+    // Convert to grayscale and get statistics
+    const grayBuffer = await image.greyscale().raw().toBuffer();
+    const pixels = new Uint8Array(grayBuffer);
+    
+    // Basic face detection using variance and gradient analysis
+    const totalPixels = pixels.length;
+    let sum = 0;
+    let sumSquares = 0;
+    
+    // Calculate mean and variance
+    for (let i = 0; i < totalPixels; i++) {
+      sum += pixels[i];
+      sumSquares += pixels[i] * pixels[i];
+    }
+    
+    const mean = sum / totalPixels;
+    const variance = (sumSquares / totalPixels) - (mean * mean);
+    
+    // Check if image has sufficient contrast (not blank/uniform)
+    if (variance < 200) {
+      console.log(`Image rejected: low variance (${variance})`);
+      return false;
+    }
+    
+    // Check brightness range (faces typically have varied brightness)
+    const sortedPixels = Array.from(pixels).sort((a, b) => a - b);
+    const brightness25th = sortedPixels[Math.floor(totalPixels * 0.25)];
+    const brightness75th = sortedPixels[Math.floor(totalPixels * 0.75)];
+    const brightnessRange = brightness75th - brightness25th;
+    
+    if (brightnessRange < 30) {
+      console.log(`Image rejected: low brightness range (${brightnessRange})`);
+      return false;
+    }
+    
+    // Look for face-like patterns using simple edge detection
+    const edgeBuffer = await sharp.default(buffer)
+      .resize(100, 100)
+      .greyscale()
+      .convolve({
+        width: 3,
+        height: 3,
+        kernel: [-1, -1, -1, -1, 8, -1, -1, -1, -1]
+      })
+      .raw()
+      .toBuffer();
+    
+    const edgePixels = new Uint8Array(edgeBuffer);
+    let edgeCount = 0;
+    for (let i = 0; i < edgePixels.length; i++) {
+      if (edgePixels[i] > 50) edgeCount++;
+    }
+    
+    const edgeRatio = edgeCount / edgePixels.length;
+    
+    if (edgeRatio < 0.05) {
+      console.log(`Image rejected: low edge ratio (${edgeRatio})`);
+      return false;
+    }
+    
+    console.log(`Image passed basic face detection: variance=${variance}, range=${brightnessRange}, edges=${edgeRatio}`);
+    return true;
+    
+  } catch (error) {
+    console.error('Face detection error:', error);
+    return false;
+  }
+}
+
 // Enhanced fallback image comparison using Sharp for better analysis
 async function compareImages(registeredImageData: string, capturedImageData: string): Promise<boolean> {
   try {
