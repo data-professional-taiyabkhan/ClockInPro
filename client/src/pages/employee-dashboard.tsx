@@ -346,7 +346,7 @@ export default function EmployeeDashboard() {
             </div>
 
             <div className="mt-4 space-y-2">
-              {user.faceImageUrl && !todayAttendance?.record?.clockOutTime ? (
+              {user.faceImageUrl ? (
                 <div className="space-y-2">
                   {!isCapturing && !capturedImage && (
                     <div className="space-y-2">
@@ -424,8 +424,9 @@ export default function EmployeeDashboard() {
                 </div>
               ) : null}
 
-              {user.faceImageUrl && todayAttendance?.record?.clockInTime && !todayAttendance?.record?.clockOutTime && (
-                <div className="space-y-2">
+              {/* Show clock-out button only if currently clocked in */}
+              {user.faceImageUrl && todayAttendance?.isClockedIn && (
+                <div className="space-y-2 mt-4">
                   <div className="text-center text-green-600 font-medium">
                     ✓ Currently clocked in
                   </div>
@@ -438,12 +439,6 @@ export default function EmployeeDashboard() {
                     <LogOut className="h-4 w-4 mr-2" />
                     {clockOutMutation.isPending ? "Clocking Out..." : "Clock Out"}
                   </Button>
-                </div>
-              )}
-              
-              {todayAttendance?.record?.clockOutTime && (
-                <div className="text-center text-gray-600 font-medium">
-                  ✓ Work day completed
                 </div>
               )}
             </div>

@@ -338,7 +338,12 @@ export function registerRoutes(app: Express): Server {
       }
 
       const today = format(new Date(), "yyyy-MM-dd");
-      // Allow multiple clock-ins for breaks - no restriction on existing records
+      const existingRecord = await storage.getTodayAttendanceRecord(req.user!.id, today);
+
+      // Allow multiple clock-ins throughout the day - create new record each time
+      if (existingRecord && !existingRecord.clockOutTime) {
+        return res.status(400).json({ message: "Please clock out before clocking in again" });
+      }
 
       // Get location if postcode provided
       let locationId = null;
@@ -437,11 +442,16 @@ export function registerRoutes(app: Express): Server {
   app.get("/api/attendance/today", requireAuth, async (req, res) => {
     try {
       const today = format(new Date(), "yyyy-MM-dd");
-      const record = await storage.getTodayAttendanceRecord(req.user!.id, today);
+      
+      // Get all records for today and check if any are still active (not clocked out)
+      const records = await storage.getUserAttendanceRecords(req.user!.id, 10);
+      const todayRecords = records.filter(record => record.date === today);
+      const activeRecord = todayRecords.find(record => !record.clockOutTime);
       
       res.json({
-        record,
-        isClockedIn: record && !record.clockOutTime
+        record: todayRecords[0] || null, // Most recent record for today
+        records: todayRecords, // All records for today
+        isClockedIn: !!activeRecord
       });
     } catch (error) {
       console.error("Get today attendance error:", error);
