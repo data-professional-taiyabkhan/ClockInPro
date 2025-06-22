@@ -264,7 +264,7 @@ export default function EmployeeDashboard() {
           </Alert>
         )}
         
-        {user.faceImageUrl && (
+        {user.faceImageUrl ? (
           <Alert>
             <Camera className="h-4 w-4" />
             <AlertDescription>
@@ -278,7 +278,7 @@ export default function EmployeeDashboard() {
               </div>
             </AlertDescription>
           </Alert>
-        )}
+        ) : null}
 
         {/* Today's Status */}
         <Card>

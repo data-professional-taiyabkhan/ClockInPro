@@ -420,10 +420,15 @@ export default function ManagerDashboard() {
               <CardContent className="p-6">
                 <div className="space-y-4">
                   <div className="text-lg font-medium">
-                    Total Employees: {employees?.length || 0}
+                    Total Users: {employees?.length || 0}
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {employees?.map((employee: any) => (
+                  {employees?.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500">
+                      No users found. Add employees using the buttons above.
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {employees?.map((employee: any) => (
                       <div
                         key={employee.id}
                         className="p-4 border rounded-lg space-y-2"
@@ -518,8 +523,9 @@ export default function ManagerDashboard() {
                           </div>
                         </div>
                       </div>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
