@@ -7,10 +7,10 @@ import { desc, eq, and } from "drizzle-orm";
 import { db } from "./db";
 import crypto from "crypto";
 import { format, differenceInMinutes } from "date-fns";
-import { rekognitionService } from "./aws-rekognition";
+// Removed AWS dependencies - using pure Sharp-based face recognition
 
-// Basic face detection using image analysis
-async function detectFaceInImage(imageData: string): Promise<boolean> {
+// Advanced face detection using comprehensive image analysis
+async function detectFaceInImage(imageData: string): Promise<{ hasFace: boolean; confidence: number; details: any }> {
   try {
     const sharp = await import('sharp');
     
@@ -22,20 +22,19 @@ async function detectFaceInImage(imageData: string): Promise<boolean> {
     const image = sharp.default(buffer);
     const { width, height } = await image.metadata();
     
-    if (!width || !height || width < 100 || height < 100) {
-      return false; // Image too small
+    if (!width || !height || width < 80 || height < 80) {
+      return { hasFace: false, confidence: 0, details: { reason: 'Image too small' } };
     }
     
-    // Convert to grayscale and get statistics
-    const grayBuffer = await image.greyscale().raw().toBuffer();
-    const pixels = new Uint8Array(grayBuffer);
-    
-    // Basic face detection using variance and gradient analysis
+    // Resize to standard size for analysis
+    const standardSize = 200;
+    const resizedBuffer = await image.resize(standardSize, standardSize).greyscale().raw().toBuffer();
+    const pixels = new Uint8Array(resizedBuffer);
     const totalPixels = pixels.length;
+    
+    // 1. Calculate image statistics
     let sum = 0;
     let sumSquares = 0;
-    
-    // Calculate mean and variance
     for (let i = 0; i < totalPixels; i++) {
       sum += pixels[i];
       sumSquares += pixels[i] * pixels[i];
@@ -44,26 +43,24 @@ async function detectFaceInImage(imageData: string): Promise<boolean> {
     const mean = sum / totalPixels;
     const variance = (sumSquares / totalPixels) - (mean * mean);
     
-    // Check if image has sufficient contrast (not blank/uniform)
-    if (variance < 200) {
-      console.log(`Image rejected: low variance (${variance})`);
-      return false;
+    // 2. Check for blank/uniform images
+    if (variance < 100) {
+      return { hasFace: false, confidence: 0, details: { reason: 'Blank or uniform image', variance } };
     }
     
-    // Check brightness range (faces typically have varied brightness)
+    // 3. Brightness distribution analysis
     const sortedPixels = Array.from(pixels).sort((a, b) => a - b);
-    const brightness25th = sortedPixels[Math.floor(totalPixels * 0.25)];
-    const brightness75th = sortedPixels[Math.floor(totalPixels * 0.75)];
-    const brightnessRange = brightness75th - brightness25th;
+    const q1 = sortedPixels[Math.floor(totalPixels * 0.25)];
+    const q3 = sortedPixels[Math.floor(totalPixels * 0.75)];
+    const iqr = q3 - q1;
     
-    if (brightnessRange < 30) {
-      console.log(`Image rejected: low brightness range (${brightnessRange})`);
-      return false;
+    if (iqr < 20) {
+      return { hasFace: false, confidence: 0, details: { reason: 'Poor contrast', iqr } };
     }
     
-    // Look for face-like patterns using simple edge detection
+    // 4. Edge detection for facial features
     const edgeBuffer = await sharp.default(buffer)
-      .resize(100, 100)
+      .resize(standardSize, standardSize)
       .greyscale()
       .convolve({
         width: 3,
@@ -74,29 +71,99 @@ async function detectFaceInImage(imageData: string): Promise<boolean> {
       .toBuffer();
     
     const edgePixels = new Uint8Array(edgeBuffer);
-    let edgeCount = 0;
+    let strongEdges = 0;
+    let mediumEdges = 0;
+    
     for (let i = 0; i < edgePixels.length; i++) {
-      if (edgePixels[i] > 50) edgeCount++;
+      if (edgePixels[i] > 80) strongEdges++;
+      else if (edgePixels[i] > 40) mediumEdges++;
     }
     
-    const edgeRatio = edgeCount / edgePixels.length;
+    const strongEdgeRatio = strongEdges / edgePixels.length;
+    const totalEdgeRatio = (strongEdges + mediumEdges) / edgePixels.length;
     
-    if (edgeRatio < 0.05) {
-      console.log(`Image rejected: low edge ratio (${edgeRatio})`);
-      return false;
+    // 5. Symmetry analysis (faces are roughly symmetrical)
+    let symmetryScore = 0;
+    const centerY = Math.floor(standardSize / 2);
+    for (let y = 0; y < standardSize; y++) {
+      for (let x = 0; x < centerY; x++) {
+        const leftPixel = pixels[y * standardSize + x];
+        const rightPixel = pixels[y * standardSize + (standardSize - 1 - x)];
+        const diff = Math.abs(leftPixel - rightPixel);
+        symmetryScore += Math.max(0, 50 - diff); // Higher score for similar pixels
+      }
+    }
+    symmetryScore = symmetryScore / (standardSize * centerY * 50);
+    
+    // 6. Face-like region detection (center region should be darker/different)
+    const centerRegionSize = Math.floor(standardSize * 0.6);
+    const centerStart = Math.floor((standardSize - centerRegionSize) / 2);
+    let centerSum = 0;
+    let borderSum = 0;
+    let centerCount = 0;
+    let borderCount = 0;
+    
+    for (let y = 0; y < standardSize; y++) {
+      for (let x = 0; x < standardSize; x++) {
+        const pixel = pixels[y * standardSize + x];
+        if (y >= centerStart && y < centerStart + centerRegionSize && 
+            x >= centerStart && x < centerStart + centerRegionSize) {
+          centerSum += pixel;
+          centerCount++;
+        } else {
+          borderSum += pixel;
+          borderCount++;
+        }
+      }
     }
     
-    console.log(`Image passed basic face detection: variance=${variance}, range=${brightnessRange}, edges=${edgeRatio}`);
-    return true;
+    const centerMean = centerSum / centerCount;
+    const borderMean = borderSum / borderCount;
+    const centerBorderDiff = Math.abs(centerMean - borderMean);
+    
+    // 7. Calculate confidence score
+    let confidence = 0;
+    
+    // Variance component (0-25 points)
+    confidence += Math.min(25, variance / 20);
+    
+    // Contrast component (0-20 points)
+    confidence += Math.min(20, iqr / 3);
+    
+    // Edge component (0-25 points)
+    confidence += Math.min(15, strongEdgeRatio * 300);
+    confidence += Math.min(10, totalEdgeRatio * 100);
+    
+    // Symmetry component (0-15 points)
+    confidence += symmetryScore * 15;
+    
+    // Center-border difference (0-15 points)
+    confidence += Math.min(15, centerBorderDiff / 5);
+    
+    const hasFace = confidence >= 40; // Threshold for face detection
+    
+    const details = {
+      variance: Math.round(variance),
+      iqr,
+      strongEdgeRatio: Math.round(strongEdgeRatio * 1000) / 1000,
+      totalEdgeRatio: Math.round(totalEdgeRatio * 1000) / 1000,
+      symmetryScore: Math.round(symmetryScore * 100) / 100,
+      centerBorderDiff: Math.round(centerBorderDiff),
+      confidence: Math.round(confidence)
+    };
+    
+    console.log(`Face detection result: ${hasFace ? 'FACE DETECTED' : 'NO FACE'} (confidence: ${confidence.toFixed(1)})`, details);
+    
+    return { hasFace, confidence, details };
     
   } catch (error) {
-    console.error('Face detection error:', error);
-    return false;
+    console.error('Advanced face detection error:', error);
+    return { hasFace: false, confidence: 0, details: { error: error.message } };
   }
 }
 
-// Enhanced fallback image comparison using Sharp for better analysis
-async function compareImages(registeredImageData: string, capturedImageData: string): Promise<boolean> {
+// Advanced face comparison using multiple algorithms
+async function compareImages(registeredImageData: string, capturedImageData: string): Promise<{ isMatch: boolean; similarity: number; confidence: number; details: any }> {
   try {
     const sharp = await import('sharp');
     
@@ -107,112 +174,231 @@ async function compareImages(registeredImageData: string, capturedImageData: str
     const registeredBuffer = Buffer.from(registeredBase64, 'base64');
     const capturedBuffer = Buffer.from(capturedBase64, 'base64');
     
-    // Multiple comparison approaches for better accuracy
-    const results = await Promise.all([
-      // 1. Full image comparison
-      compareImageBuffers(sharp, registeredBuffer, capturedBuffer, 200),
-      // 2. Center face region comparison
-      compareImageBuffers(sharp, registeredBuffer, capturedBuffer, 150, true),
-      // 3. Edge detection comparison
-      compareEdgeDetection(sharp, registeredBuffer, capturedBuffer),
+    // Run multiple comparison algorithms in parallel
+    const [
+      pixelComparison,
+      histogramComparison,
+      edgeComparison,
+      structuralComparison,
+      featureComparison
+    ] = await Promise.all([
+      comparePixelSimilarity(sharp, registeredBuffer, capturedBuffer),
+      compareHistograms(sharp, registeredBuffer, capturedBuffer),
+      compareEdgePatterns(sharp, registeredBuffer, capturedBuffer),
+      compareStructuralSimilarity(sharp, registeredBuffer, capturedBuffer),
+      compareFacialFeatures(sharp, registeredBuffer, capturedBuffer)
     ]);
     
-    const [fullSimilarity, faceSimilarity, edgeSimilarity] = results;
+    // Weighted scoring system
+    const weights = {
+      pixel: 0.15,
+      histogram: 0.20,
+      edge: 0.20,
+      structural: 0.25,
+      features: 0.20
+    };
     
-    // Weighted average with higher weight on face region
-    const weightedSimilarity = (fullSimilarity * 0.3 + faceSimilarity * 0.5 + edgeSimilarity * 0.2);
+    const weightedSimilarity = 
+      pixelComparison * weights.pixel +
+      histogramComparison * weights.histogram +
+      edgeComparison * weights.edge +
+      structuralComparison * weights.structural +
+      featureComparison * weights.features;
     
-    console.log(`Enhanced image comparison - Full: ${(fullSimilarity * 100).toFixed(1)}%, Face: ${(faceSimilarity * 100).toFixed(1)}%, Edge: ${(edgeSimilarity * 100).toFixed(1)}%, Weighted: ${(weightedSimilarity * 100).toFixed(1)}%`);
+    // Calculate confidence based on consistency across methods
+    const scores = [pixelComparison, histogramComparison, edgeComparison, structuralComparison, featureComparison];
+    const mean = scores.reduce((a, b) => a + b, 0) / scores.length;
+    const variance = scores.reduce((acc, score) => acc + Math.pow(score - mean, 2), 0) / scores.length;
+    const consistency = Math.max(0, 1 - variance); // Higher consistency = higher confidence
     
-    // Much more lenient threshold for same person recognition
-    return weightedSimilarity > 0.60;
+    const confidence = (weightedSimilarity + consistency) / 2 * 100;
+    
+    // Dynamic threshold based on confidence
+    let threshold = 0.62; // Base threshold
+    if (confidence > 80) threshold = 0.58; // Lower threshold for high confidence
+    if (confidence < 60) threshold = 0.68; // Higher threshold for low confidence
+    
+    const isMatch = weightedSimilarity >= threshold;
+    
+    const details = {
+      pixel: Math.round(pixelComparison * 100),
+      histogram: Math.round(histogramComparison * 100),
+      edge: Math.round(edgeComparison * 100),
+      structural: Math.round(structuralComparison * 100),
+      features: Math.round(featureComparison * 100),
+      weighted: Math.round(weightedSimilarity * 100),
+      confidence: Math.round(confidence),
+      threshold: Math.round(threshold * 100),
+      consistency: Math.round(consistency * 100)
+    };
+    
+    console.log(`Advanced face comparison:`, details);
+    
+    return {
+      isMatch,
+      similarity: weightedSimilarity * 100,
+      confidence,
+      details
+    };
     
   } catch (error) {
-    console.error('Enhanced image comparison error:', error);
-    return false; // Fail secure - don't allow if comparison fails
+    console.error('Advanced face comparison error:', error);
+    return { isMatch: false, similarity: 0, confidence: 0, details: { error: error.message } };
   }
 }
 
-async function compareImageBuffers(sharp: any, buffer1: Buffer, buffer2: Buffer, size: number, centerCrop: boolean = false): Promise<number> {
-  let processed1, processed2;
+// Individual comparison algorithms
+
+async function comparePixelSimilarity(sharp: any, buffer1: Buffer, buffer2: Buffer): Promise<number> {
+  const size = 128;
+  const img1 = await sharp.default(buffer1).resize(size, size).greyscale().raw().toBuffer();
+  const img2 = await sharp.default(buffer2).resize(size, size).greyscale().raw().toBuffer();
   
-  if (centerCrop) {
-    // Focus on center region (face area)
-    const cropSize = Math.floor(size * 0.7);
-    const offset = Math.floor((size - cropSize) / 2);
-    
-    processed1 = await sharp.default(buffer1)
-      .resize(size, size)
-      .extract({ left: offset, top: offset, width: cropSize, height: cropSize })
-      .greyscale()
-      .raw()
-      .toBuffer();
-      
-    processed2 = await sharp.default(buffer2)
-      .resize(size, size)
-      .extract({ left: offset, top: offset, width: cropSize, height: cropSize })
-      .greyscale()
-      .raw()
-      .toBuffer();
-  } else {
-    processed1 = await sharp.default(buffer1)
-      .resize(size, size)
-      .greyscale()
-      .raw()
-      .toBuffer();
-      
-    processed2 = await sharp.default(buffer2)
-      .resize(size, size)
-      .greyscale()
-      .raw()
-      .toBuffer();
-  }
-  
-  // Calculate pixel difference
   let totalDiff = 0;
-  const totalPixels = processed1.length;
-  
-  for (let i = 0; i < totalPixels; i++) {
-    totalDiff += Math.abs(processed1[i] - processed2[i]);
+  for (let i = 0; i < img1.length; i++) {
+    totalDiff += Math.abs(img1[i] - img2[i]);
   }
   
-  const avgDiff = totalDiff / totalPixels / 255;
-  return 1 - avgDiff;
+  return 1 - (totalDiff / (img1.length * 255));
 }
 
-async function compareEdgeDetection(sharp: any, buffer1: Buffer, buffer2: Buffer): Promise<number> {
-  // Apply edge detection to focus on facial features
+async function compareHistograms(sharp: any, buffer1: Buffer, buffer2: Buffer): Promise<number> {
+  const size = 128;
+  const img1 = await sharp.default(buffer1).resize(size, size).greyscale().raw().toBuffer();
+  const img2 = await sharp.default(buffer2).resize(size, size).greyscale().raw().toBuffer();
+  
+  // Create histograms
+  const hist1 = new Array(256).fill(0);
+  const hist2 = new Array(256).fill(0);
+  
+  for (let i = 0; i < img1.length; i++) {
+    hist1[img1[i]]++;
+    hist2[img2[i]]++;
+  }
+  
+  // Normalize histograms
+  const total = img1.length;
+  for (let i = 0; i < 256; i++) {
+    hist1[i] /= total;
+    hist2[i] /= total;
+  }
+  
+  // Calculate correlation coefficient
+  let correlation = 0;
+  for (let i = 0; i < 256; i++) {
+    correlation += hist1[i] * hist2[i];
+  }
+  
+  return Math.sqrt(correlation);
+}
+
+async function compareEdgePatterns(sharp: any, buffer1: Buffer, buffer2: Buffer): Promise<number> {
+  const size = 128;
+  
+  // Sobel edge detection
+  const sobelX = [-1, 0, 1, -2, 0, 2, -1, 0, 1];
+  const sobelY = [-1, -2, -1, 0, 0, 0, 1, 2, 1];
+  
   const edges1 = await sharp.default(buffer1)
-    .resize(150, 150)
+    .resize(size, size)
     .greyscale()
-    .convolve({
-      width: 3,
-      height: 3,
-      kernel: [-1, -1, -1, -1, 8, -1, -1, -1, -1]
-    })
+    .convolve({ width: 3, height: 3, kernel: sobelX })
     .raw()
     .toBuffer();
     
   const edges2 = await sharp.default(buffer2)
-    .resize(150, 150)
+    .resize(size, size)
     .greyscale()
-    .convolve({
-      width: 3,
-      height: 3,
-      kernel: [-1, -1, -1, -1, 8, -1, -1, -1, -1]
-    })
+    .convolve({ width: 3, height: 3, kernel: sobelX })
     .raw()
     .toBuffer();
   
-  let totalDiff = 0;
-  const totalPixels = edges1.length;
-  
-  for (let i = 0; i < totalPixels; i++) {
-    totalDiff += Math.abs(edges1[i] - edges2[i]);
+  let similarity = 0;
+  for (let i = 0; i < edges1.length; i++) {
+    similarity += Math.min(edges1[i], edges2[i]);
   }
   
-  const avgDiff = totalDiff / totalPixels / 255;
-  return 1 - avgDiff;
+  let maxPossible = 0;
+  for (let i = 0; i < edges1.length; i++) {
+    maxPossible += Math.max(edges1[i], edges2[i]);
+  }
+  
+  return maxPossible > 0 ? similarity / maxPossible : 0;
+}
+
+async function compareStructuralSimilarity(sharp: any, buffer1: Buffer, buffer2: Buffer): Promise<number> {
+  const size = 64; // Smaller for structural analysis
+  const img1 = await sharp.default(buffer1).resize(size, size).greyscale().raw().toBuffer();
+  const img2 = await sharp.default(buffer2).resize(size, size).greyscale().raw().toBuffer();
+  
+  // Calculate means
+  let mean1 = 0, mean2 = 0;
+  for (let i = 0; i < img1.length; i++) {
+    mean1 += img1[i];
+    mean2 += img2[i];
+  }
+  mean1 /= img1.length;
+  mean2 /= img2.length;
+  
+  // Calculate variances and covariance
+  let var1 = 0, var2 = 0, cov = 0;
+  for (let i = 0; i < img1.length; i++) {
+    const diff1 = img1[i] - mean1;
+    const diff2 = img2[i] - mean2;
+    var1 += diff1 * diff1;
+    var2 += diff2 * diff2;
+    cov += diff1 * diff2;
+  }
+  var1 /= img1.length;
+  var2 /= img2.length;
+  cov /= img1.length;
+  
+  // SSIM calculation
+  const c1 = 0.01 * 255 * 0.01 * 255;
+  const c2 = 0.03 * 255 * 0.03 * 255;
+  
+  const ssim = ((2 * mean1 * mean2 + c1) * (2 * cov + c2)) / 
+               ((mean1 * mean1 + mean2 * mean2 + c1) * (var1 + var2 + c2));
+  
+  return Math.max(0, ssim);
+}
+
+async function compareFacialFeatures(sharp: any, buffer1: Buffer, buffer2: Buffer): Promise<number> {
+  const size = 100;
+  const img1 = await sharp.default(buffer1).resize(size, size).greyscale().raw().toBuffer();
+  const img2 = await sharp.default(buffer2).resize(size, size).greyscale().raw().toBuffer();
+  
+  // Divide image into facial regions and compare
+  const regions = [
+    { name: 'eyes', x: 20, y: 25, w: 60, h: 25, weight: 0.4 },
+    { name: 'nose', x: 35, y: 40, w: 30, h: 25, weight: 0.3 },
+    { name: 'mouth', x: 30, y: 65, w: 40, h: 20, weight: 0.3 }
+  ];
+  
+  let totalSimilarity = 0;
+  let totalWeight = 0;
+  
+  for (const region of regions) {
+    let regionSim = 0;
+    let regionPixels = 0;
+    
+    for (let y = region.y; y < region.y + region.h && y < size; y++) {
+      for (let x = region.x; x < region.x + region.w && x < size; x++) {
+        const idx = y * size + x;
+        const diff = Math.abs(img1[idx] - img2[idx]);
+        regionSim += (255 - diff) / 255;
+        regionPixels++;
+      }
+    }
+    
+    if (regionPixels > 0) {
+      regionSim /= regionPixels;
+      totalSimilarity += regionSim * region.weight;
+      totalWeight += region.weight;
+    }
+  }
+  
+  return totalWeight > 0 ? totalSimilarity / totalWeight : 0;
 }
 
 // UK Postcode validation regex
