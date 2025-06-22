@@ -541,6 +541,18 @@ export default function ManagerDashboard() {
                             >
                               {employee.faceImageUrl ? "Update Face" : "Add Face"}
                             </Button>
+                            
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => {
+                                if (confirm(`Are you sure you want to delete ${employee.firstName} ${employee.lastName}? This action cannot be undone.`)) {
+                                  deleteUserMutation.mutate(employee.id);
+                                }
+                              }}
+                            >
+                              Delete User
+                            </Button>
                           </div>
                         </div>
                       </div>
