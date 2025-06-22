@@ -20,14 +20,10 @@ export function FaceAuthModal({ isOpen, onClose, onSuccess, action }: FaceAuthMo
 
   const verifyFaceMutation = useMutation({
     mutationFn: async (faceData: string) => {
-      const res = await apiRequest("POST", "/api/verify-face", { faceData });
-      
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.message || "Face verification failed");
-      }
-      
-      return await res.json();
+      return await apiRequest("/api/verify-face", {
+        method: "POST",
+        body: JSON.stringify({ faceData })
+      });
     },
     onSuccess: () => {
       toast({

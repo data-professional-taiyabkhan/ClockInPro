@@ -323,7 +323,13 @@ export default function EmployeeDashboard() {
               {user.faceImageUrl && !todayAttendance?.isClockedIn ? (
                 <div className="space-y-2">
                   {!isCapturing && !capturedImage && (
-                    <Button onClick={startCamera} className="w-full">
+                    <Button 
+                      onClick={() => {
+                        console.log('Face check-in button clicked');
+                        startCamera();
+                      }} 
+                      className="w-full"
+                    >
                       <Camera className="h-4 w-4 mr-2" />
                       Start Face Check-In
                     </Button>
