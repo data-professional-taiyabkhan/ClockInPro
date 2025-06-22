@@ -338,10 +338,13 @@ export function registerRoutes(app: Express): Server {
       }
 
       const today = format(new Date(), "yyyy-MM-dd");
-      const existingRecord = await storage.getTodayAttendanceRecord(req.user!.id, today);
+      
+      // Check if user has any active (unclosed) sessions today
+      const records = await storage.getUserAttendanceRecords(req.user!.id, 20);
+      const todayRecords = records.filter(record => record.date === today);
+      const activeRecord = todayRecords.find(record => !record.clockOutTime);
 
-      // Allow multiple clock-ins throughout the day - create new record each time
-      if (existingRecord && !existingRecord.clockOutTime) {
+      if (activeRecord) {
         return res.status(400).json({ message: "Please clock out before clocking in again" });
       }
 
@@ -374,10 +377,19 @@ export function registerRoutes(app: Express): Server {
       // Get all attendance records and find the most recent one without clock-out
       const records = await storage.getUserAttendanceRecords(req.user!.id, 20);
       const todayRecords = records.filter(record => record.date === today);
-      const activeRecord = todayRecords.find(record => !record.clockOutTime);
+      
+      // Find the most recent record that doesn't have a clock-out time
+      const activeRecord = todayRecords
+        .sort((a, b) => new Date(b.clockInTime).getTime() - new Date(a.clockInTime).getTime())
+        .find(record => !record.clockOutTime);
 
       if (!activeRecord) {
-        return res.status(400).json({ message: "No active clock-in found for today" });
+        return res.status(400).json({ message: "You are not currently clocked in" });
+      }
+
+      // Double check that this record hasn't already been clocked out
+      if (activeRecord.clockOutTime) {
+        return res.status(400).json({ message: "This session is already clocked out" });
       }
 
       const clockOutTime = new Date();
@@ -389,6 +401,7 @@ export function registerRoutes(app: Express): Server {
         totalHours: parseFloat(totalHours)
       });
 
+      console.log(`User ${req.user!.email} clocked out from session ${activeRecord.id}`);
       res.json(updatedRecord);
     } catch (error) {
       console.error("Clock out error:", error);
@@ -432,10 +445,19 @@ export function registerRoutes(app: Express): Server {
       // Find the most recent active record for the user
       const records = await storage.getUserAttendanceRecords(userId, 20);
       const todayRecords = records.filter(record => record.date === today);
-      const activeRecord = todayRecords.find(record => !record.clockOutTime);
+      
+      // Find the most recent record that doesn't have a clock-out time
+      const activeRecord = todayRecords
+        .sort((a, b) => new Date(b.clockInTime).getTime() - new Date(a.clockInTime).getTime())
+        .find(record => !record.clockOutTime);
 
       if (!activeRecord) {
-        return res.status(400).json({ message: "No active clock-in found for this user today" });
+        return res.status(400).json({ message: "This user is not currently clocked in" });
+      }
+
+      // Double check that this record hasn't already been clocked out
+      if (activeRecord.clockOutTime) {
+        return res.status(400).json({ message: "This session is already clocked out" });
       }
 
       const finalClockOutTime = clockOutTime ? new Date(clockOutTime) : new Date();
@@ -448,6 +470,7 @@ export function registerRoutes(app: Express): Server {
         notes: notes || activeRecord.notes
       });
 
+      console.log(`Manager ${req.user!.email} clocked out user ${userId} from session ${activeRecord.id}`);
       res.json(updatedRecord);
     } catch (error) {
       console.error("Manual clock out error:", error);
