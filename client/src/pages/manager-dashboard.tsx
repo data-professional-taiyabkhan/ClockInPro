@@ -171,6 +171,30 @@ export default function ManagerDashboard() {
     },
   });
 
+  // Manual clock-out mutation
+  const manualClockOutMutation = useMutation({
+    mutationFn: async (data: { userId: number; clockOutTime?: string; notes?: string }) => {
+      return await apiRequest("/api/manual-clock-out", {
+        method: "POST",
+        body: JSON.stringify(data),
+      });
+    },
+    onSuccess: () => {
+      toast({
+        title: "Success",
+        description: "User clocked out successfully",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/attendance"] });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Failed to clock out user",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   // Delete user mutation
   const deleteUserMutation = useMutation({
     mutationFn: async (userId: number) => {
@@ -565,6 +589,20 @@ export default function ManagerDashboard() {
                               {employee.faceImageUrl ? "Update Face" : "Add Face"}
                             </Button>
                             
+                            {/* Manual clock-out button */}
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                if (confirm(`Clock out ${employee.firstName} ${employee.lastName}?`)) {
+                                  manualClockOutMutation.mutate({ userId: employee.id });
+                                }
+                              }}
+                              disabled={manualClockOutMutation.isPending}
+                            >
+                              {manualClockOutMutation.isPending ? "Clocking Out..." : "Clock Out"}
+                            </Button>
+
                             {/* Delete button with role-based permissions */}
                             {((user?.role === "admin") || 
                               (user?.role === "manager" && employee.role === "employee")) && 
