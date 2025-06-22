@@ -105,9 +105,14 @@ export function registerRoutes(app: Express): Server {
     res.json(safeUser);
   });
 
-  // Manager-only employee face image management
-  app.post("/api/employees/:id/face-image", requireManager, async (req, res) => {
+  // Manager/Admin employee face image management
+  app.post("/api/employees/:id/face-image", requireAuth, async (req, res) => {
     try {
+      // Check if user is manager or admin
+      if (req.user!.role !== 'manager' && req.user!.role !== 'admin') {
+        return res.status(403).json({ message: "Manager or Admin access required" });
+      }
+
       const { imageData } = req.body;
       const employeeId = parseInt(req.params.id);
       
@@ -387,6 +392,8 @@ export function registerRoutes(app: Express): Server {
         const { password: _, ...safeUser } = user;
         return safeUser;
       });
+      
+      console.log(`Returning ${safeUsers.length} users for ${req.user!.role}:`, safeUsers.map(u => `${u.email} (${u.role})`));
       res.json(safeUsers);
     } catch (error) {
       console.error("Get employees error:", error);
@@ -395,9 +402,19 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Employee invitation system
-  app.post("/api/create-invitation", requireManager, async (req, res) => {
+  app.post("/api/create-invitation", requireAuth, async (req, res) => {
     try {
+      // Check if user is manager or admin
+      if (req.user!.role !== 'manager' && req.user!.role !== 'admin') {
+        return res.status(403).json({ message: "Manager or Admin access required" });
+      }
+
       const { email, role } = req.body;
+
+      // Check role permissions: only admin can invite managers
+      if (role === 'manager' && req.user!.role !== 'admin') {
+        return res.status(403).json({ message: "Only admin can create manager invitations" });
+      }
       
       // Check if user already exists
       const existingUser = await storage.getUserByEmail(email);
@@ -427,8 +444,13 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  app.get("/api/invitations", requireManager, async (req, res) => {
+  app.get("/api/invitations", requireAuth, async (req, res) => {
     try {
+      // Check if user is manager or admin
+      if (req.user!.role !== 'manager' && req.user!.role !== 'admin') {
+        return res.status(403).json({ message: "Manager or Admin access required" });
+      }
+
       const invitations = await storage.getActiveInvitations();
       res.json(invitations);
     } catch (error) {

@@ -334,9 +334,17 @@ export default function EmployeeDashboard() {
                           autoPlay
                           playsInline
                           muted
-                          style={{ width: '300px', height: '225px' }}
+                          style={{ 
+                            width: '300px', 
+                            height: '225px',
+                            backgroundColor: '#000',
+                            display: 'block'
+                          }}
                           className="rounded-lg border-2 border-gray-300"
                         />
+                      </div>
+                      <div className="text-center text-sm text-gray-600">
+                        Position your face in the camera view and click capture when ready
                       </div>
                       <Button onClick={captureImage} className="w-full">
                         Capture Face

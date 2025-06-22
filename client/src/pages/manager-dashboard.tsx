@@ -153,6 +153,7 @@ export default function ManagerDashboard() {
         description: "Invitation created successfully",
       });
       queryClient.invalidateQueries({ queryKey: ["/api/invitations"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/employees"] });
       setIsCreatingInvitation(false);
     },
     onError: (error: Error) => {
@@ -318,12 +319,17 @@ export default function ManagerDashboard() {
 
                       <div>
                         <Label htmlFor="role">Role</Label>
-                        <select name="role" className="w-full p-2 border rounded">
-                          <option value="employee">Employee</option>
-                          {user.role === "admin" && (
-                            <option value="manager">Manager</option>
-                          )}
-                        </select>
+                        <Select name="role" defaultValue="employee">
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select role" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="employee">Employee</SelectItem>
+                            {user?.role === "admin" && (
+                              <SelectItem value="manager">Manager</SelectItem>
+                            )}
+                          </SelectContent>
+                        </Select>
                       </div>
 
                       <Button
