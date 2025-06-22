@@ -346,7 +346,7 @@ export default function EmployeeDashboard() {
             </div>
 
             <div className="mt-4 space-y-2">
-              {user.faceImageUrl && !todayAttendance?.isClockedIn && !todayAttendance?.record?.clockInTime ? (
+              {user.faceImageUrl && !todayAttendance?.record?.clockOutTime ? (
                 <div className="space-y-2">
                   {!isCapturing && !capturedImage && (
                     <div className="space-y-2">
@@ -424,16 +424,27 @@ export default function EmployeeDashboard() {
                 </div>
               ) : null}
 
-              {todayAttendance?.isClockedIn && (
-                <Button
-                  onClick={() => clockOutMutation.mutate()}
-                  disabled={clockOutMutation.isPending}
-                  variant="destructive"
-                  className="w-full"
-                >
-                  <Clock className="h-4 w-4 mr-2" />
-                  {clockOutMutation.isPending ? "Clocking Out..." : "Clock Out"}
-                </Button>
+              {user.faceImageUrl && todayAttendance?.record?.clockInTime && !todayAttendance?.record?.clockOutTime && (
+                <div className="space-y-2">
+                  <div className="text-center text-green-600 font-medium">
+                    ✓ Currently clocked in
+                  </div>
+                  <Button
+                    onClick={() => clockOutMutation.mutate()}
+                    disabled={clockOutMutation.isPending}
+                    variant="destructive"
+                    className="w-full"
+                  >
+                    <LogOut className="h-4 w-4 mr-2" />
+                    {clockOutMutation.isPending ? "Clocking Out..." : "Clock Out"}
+                  </Button>
+                </div>
+              )}
+              
+              {todayAttendance?.record?.clockOutTime && (
+                <div className="text-center text-gray-600 font-medium">
+                  ✓ Work day completed
+                </div>
               )}
             </div>
           </CardContent>

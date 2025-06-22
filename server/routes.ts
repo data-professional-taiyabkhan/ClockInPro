@@ -9,6 +9,54 @@ import crypto from "crypto";
 import { format, differenceInMinutes } from "date-fns";
 import { rekognitionService } from "./aws-rekognition";
 
+// Enhanced image comparison using Sharp for better analysis
+async function compareImages(registeredImageData: string, capturedImageData: string): Promise<boolean> {
+  try {
+    const sharp = require('sharp');
+    
+    // Convert base64 to buffers
+    const registeredBase64 = registeredImageData.replace(/^data:image\/[a-z]+;base64,/, '');
+    const capturedBase64 = capturedImageData.replace(/^data:image\/[a-z]+;base64,/, '');
+    
+    const registeredBuffer = Buffer.from(registeredBase64, 'base64');
+    const capturedBuffer = Buffer.from(capturedBase64, 'base64');
+    
+    // Resize both images to same dimensions for comparison
+    const size = 100;
+    const registeredProcessed = await sharp(registeredBuffer)
+      .resize(size, size)
+      .greyscale()
+      .raw()
+      .toBuffer();
+      
+    const capturedProcessed = await sharp(capturedBuffer)
+      .resize(size, size)
+      .greyscale()
+      .raw()
+      .toBuffer();
+    
+    // Calculate pixel difference
+    let totalDiff = 0;
+    const totalPixels = size * size;
+    
+    for (let i = 0; i < totalPixels; i++) {
+      totalDiff += Math.abs(registeredProcessed[i] - capturedProcessed[i]);
+    }
+    
+    const avgDiff = totalDiff / totalPixels / 255; // Normalize to 0-1
+    const similarity = 1 - avgDiff;
+    
+    console.log(`Enhanced image comparison - Similarity: ${(similarity * 100).toFixed(1)}%`);
+    
+    // Require 75% similarity for verification
+    return similarity > 0.75;
+    
+  } catch (error) {
+    console.error('Enhanced image comparison error:', error);
+    return false; // Fail secure - don't allow if comparison fails
+  }
+}
+
 // UK Postcode validation regex
 const UK_POSTCODE_REGEX = /^[A-Z]{1,2}\d[A-Z\d]?\s?\d[A-Z]{2}$/i;
 
@@ -290,11 +338,7 @@ export function registerRoutes(app: Express): Server {
       }
 
       const today = format(new Date(), "yyyy-MM-dd");
-      const existingRecord = await storage.getTodayAttendanceRecord(req.user!.id, today);
-
-      if (existingRecord && !existingRecord.clockOutTime) {
-        return res.status(400).json({ message: "Already clocked in today" });
-      }
+      // Allow multiple clock-ins for breaks - no restriction on existing records
 
       // Get location if postcode provided
       let locationId = null;
