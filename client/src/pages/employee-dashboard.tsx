@@ -20,6 +20,8 @@ export default function EmployeeDashboard() {
   const [isCapturing, setIsCapturing] = useState(false);
   const [capturedImage, setCapturedImage] = useState<string>("");
   const [userLocation, setUserLocation] = useState<UserLocation>({});
+  
+  console.log('Component render - isCapturing:', isCapturing, 'capturedImage:', !!capturedImage);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -174,18 +176,27 @@ export default function EmployeeDashboard() {
 
   const startCamera = async () => {
     try {
+      console.log('Starting camera...');
       const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { facingMode: "user" } 
+        video: { 
+          width: 640, 
+          height: 480,
+          facingMode: "user" 
+        } 
       });
+      console.log('Camera stream obtained:', stream);
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
+        await videoRef.current.play();
         setIsCapturing(true);
         getUserLocation();
+        console.log('Camera started successfully, isCapturing set to true');
       }
     } catch (error) {
+      console.error('Error accessing camera:', error);
       toast({
         title: "Camera Error",
-        description: "Could not access camera",
+        description: "Could not access camera. Please allow camera permissions.",
         variant: "destructive",
       });
     }
@@ -325,7 +336,7 @@ export default function EmployeeDashboard() {
                   {!isCapturing && !capturedImage && (
                     <Button 
                       onClick={() => {
-                        console.log('Face check-in button clicked');
+                        console.log('Face check-in button clicked, current isCapturing:', isCapturing);
                         startCamera();
                       }} 
                       className="w-full"
@@ -337,6 +348,9 @@ export default function EmployeeDashboard() {
 
                   {isCapturing && (
                     <div className="space-y-2">
+                      <div className="text-center text-green-600 mb-2">
+                        Camera is active
+                      </div>
                       <div className="flex justify-center">
                         <video
                           ref={videoRef}
@@ -349,7 +363,7 @@ export default function EmployeeDashboard() {
                             backgroundColor: '#000',
                             display: 'block'
                           }}
-                          className="rounded-lg border-2 border-gray-300"
+                          className="rounded-lg border-2 border-green-300"
                         />
                       </div>
                       <div className="text-center text-sm text-gray-600">
