@@ -594,8 +594,36 @@ export default function ManagerDashboard() {
                               size="sm"
                               variant="outline"
                               onClick={() => {
-                                if (confirm(`Clock out ${employee.firstName} ${employee.lastName}?`)) {
-                                  manualClockOutMutation.mutate({ userId: employee.id });
+                                const clockOutTime = prompt(
+                                  `Clock out ${employee.firstName} ${employee.lastName}?\n\nEnter clock-out time (or leave blank for current time):\nFormat: HH:MM (24-hour) or YYYY-MM-DD HH:MM`
+                                );
+                                
+                                if (clockOutTime !== null) {
+                                  let finalClockOutTime = null;
+                                  
+                                  if (clockOutTime.trim()) {
+                                    // Parse the time input
+                                    const today = new Date().toISOString().split('T')[0];
+                                    let timeString = clockOutTime.trim();
+                                    
+                                    // If only time provided (HH:MM), add today's date
+                                    if (/^\d{1,2}:\d{2}$/.test(timeString)) {
+                                      timeString = `${today} ${timeString}`;
+                                    }
+                                    
+                                    const parsedDate = new Date(timeString);
+                                    if (!isNaN(parsedDate.getTime())) {
+                                      finalClockOutTime = parsedDate.toISOString();
+                                    } else {
+                                      alert("Invalid time format. Please use HH:MM or YYYY-MM-DD HH:MM");
+                                      return;
+                                    }
+                                  }
+                                  
+                                  manualClockOutMutation.mutate({ 
+                                    userId: employee.id,
+                                    clockOutTime: finalClockOutTime
+                                  });
                                 }
                               }}
                               disabled={manualClockOutMutation.isPending}
