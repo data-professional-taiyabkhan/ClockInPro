@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 """
-Professional face recognition service with distance-based matching.
-Implements proper face_recognition library techniques for attendance systems.
+Professional face recognition service using OpenCV and computer vision.
+Implements distance-based matching optimized for attendance systems.
 """
 
-import face_recognition
 import cv2
 import numpy as np
 import base64
@@ -14,16 +13,25 @@ from PIL import Image, ImageEnhance
 import io
 
 class FaceRecognitionService:
-    def __init__(self, tolerance=0.5, num_jitters=10):
+    def __init__(self, tolerance=0.5, num_augmentations=5):
         """
         Initialize face recognition service with attendance-optimized settings.
         
         Args:
             tolerance (float): Distance threshold for face matching (0.5 for stricter matching)
-            num_jitters (int): Number of augmentations for robust encoding (5-10 recommended)
+            num_augmentations (int): Number of augmentations for robust encoding
         """
         self.tolerance = tolerance
-        self.num_jitters = num_jitters
+        self.num_augmentations = num_augmentations
+        
+        # Initialize OpenCV face detection
+        self.face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+        self.profile_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_profileface.xml')
+        
+        # Initialize LBPH face recognizer for robust comparison
+        self.face_recognizer = cv2.face.LBPHFaceRecognizer_create(
+            radius=1, neighbors=8, grid_x=8, grid_y=8, threshold=80.0
+        )
         
     def preprocess_image(self, image):
         """
@@ -45,47 +53,53 @@ class FaceRecognitionService:
         
         return np.array(image)
     
-    def detect_and_align_face(self, image, upsample_times=1):
+    def detect_and_align_face(self, image, scale_factor=1.1, min_neighbors=5):
         """
         Detect face and return aligned face region for consistent encoding.
         
         Args:
             image: Input image as numpy array
-            upsample_times: Number of times to upsample image for better detection
+            scale_factor: How much the image size is reduced at each scale
+            min_neighbors: How many neighbors each face rectangle should have to retain it
             
         Returns:
-            tuple: (aligned_face, face_locations) or (None, []) if no face found
+            tuple: (aligned_face, face_rect) or (None, None) if no face found
         """
-        # Detect face locations with upsampling for better detection
-        face_locations = face_recognition.face_locations(
-            image, 
-            number_of_times_to_upsample=upsample_times,
-            model="hog"  # Use HOG for faster detection, can switch to "cnn" for better accuracy
+        gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY) if len(image.shape) == 3 else image
+        
+        # Detect faces using both frontal and profile cascades
+        frontal_faces = self.face_cascade.detectMultiScale(
+            gray, scaleFactor=scale_factor, minNeighbors=min_neighbors, minSize=(80, 80)
         )
         
-        if not face_locations:
-            return None, []
+        profile_faces = self.profile_cascade.detectMultiScale(
+            gray, scaleFactor=scale_factor, minNeighbors=min_neighbors, minSize=(80, 80)
+        )
+        
+        # Combine and select largest face
+        all_faces = list(frontal_faces) + list(profile_faces)
+        
+        if len(all_faces) == 0:
+            return None, None
             
         # Get the largest face (closest to camera)
-        largest_face = max(face_locations, key=lambda loc: (loc[2] - loc[0]) * (loc[1] - loc[3]))
+        largest_face = max(all_faces, key=lambda rect: rect[2] * rect[3])
+        x, y, w, h = largest_face
         
-        # Extract face region with some padding
-        top, right, bottom, left = largest_face
-        padding = 20
+        # Add padding and ensure within image bounds
+        padding = max(20, min(w, h) // 4)
+        x_pad = max(0, x - padding)
+        y_pad = max(0, y - padding)
+        w_pad = min(image.shape[1] - x_pad, w + 2 * padding)
+        h_pad = min(image.shape[0] - y_pad, h + 2 * padding)
         
-        height, width = image.shape[:2]
-        top = max(0, top - padding)
-        right = min(width, right + padding)
-        bottom = min(height, bottom + padding)
-        left = max(0, left - padding)
+        aligned_face = image[y_pad:y_pad + h_pad, x_pad:x_pad + w_pad]
         
-        aligned_face = image[top:bottom, left:right]
-        
-        return aligned_face, [largest_face]
+        return aligned_face, (x, y, w, h)
     
     def generate_robust_encoding(self, image_data):
         """
-        Generate robust face encoding with multiple jitters for better reliability.
+        Generate robust face encoding using computer vision techniques.
         
         Args:
             image_data: Base64 image data
@@ -106,7 +120,7 @@ class FaceRecognitionService:
             processed_image = self.preprocess_image(image_np)
             
             # Detect and align face
-            aligned_face, face_locations = self.detect_and_align_face(processed_image, upsample_times=1)
+            aligned_face, face_rect = self.detect_and_align_face(processed_image)
             
             if aligned_face is None:
                 return {
@@ -116,42 +130,56 @@ class FaceRecognitionService:
                     'details': {'error': 'No face detected in image'}
                 }
             
-            # Generate encoding with jitter for robustness
-            face_encodings = face_recognition.face_encodings(
-                processed_image,
-                known_face_locations=face_locations,
-                num_jitters=self.num_jitters,
-                model="large"  # Use large model for better accuracy
-            )
+            # Generate multiple feature encodings for robustness
+            encodings = []
             
-            if not face_encodings:
-                return {
-                    'success': False,
-                    'encoding': None,
-                    'confidence': 0.0,
-                    'details': {'error': 'Could not generate face encoding'}
-                }
+            # Resize face to standard size for consistent comparison
+            standard_face = cv2.resize(aligned_face, (128, 128))
+            gray_face = cv2.cvtColor(standard_face, cv2.COLOR_RGB2GRAY)
             
-            # Convert numpy array to list for JSON serialization
-            encoding = face_encodings[0].tolist()
+            # 1. LBP Histogram features
+            lbp_features = self.extract_lbp_features(gray_face)
+            encodings.extend(lbp_features)
             
-            # Calculate confidence based on face size and quality
-            face_area = (face_locations[0][2] - face_locations[0][0]) * (face_locations[0][1] - face_locations[0][3])
+            # 2. HOG features for facial structure
+            hog_features = self.extract_hog_features(gray_face)
+            encodings.extend(hog_features)
+            
+            # 3. Gabor filter responses for texture
+            gabor_features = self.extract_gabor_features(gray_face)
+            encodings.extend(gabor_features)
+            
+            # 4. Eigenface-like features
+            pca_features = self.extract_pca_features(gray_face)
+            encodings.extend(pca_features)
+            
+            # Calculate confidence based on face size and detection quality
+            x, y, w, h = face_rect
+            face_area = w * h
             image_area = processed_image.shape[0] * processed_image.shape[1]
             face_ratio = face_area / image_area
             
-            # Higher confidence for larger, clearer faces
-            confidence = min(95, 60 + (face_ratio * 100))
+            # Factor in face size, clarity, and centering
+            size_score = min(1.0, face_ratio * 10)  # Good if face is 10%+ of image
+            clarity_score = self.assess_image_clarity(gray_face)
+            center_score = self.assess_face_centering(face_rect, processed_image.shape)
+            
+            confidence = min(95, (size_score * 0.4 + clarity_score * 0.4 + center_score * 0.2) * 100)
             
             return {
                 'success': True,
-                'encoding': encoding,
+                'encoding': encodings,
                 'confidence': confidence,
                 'details': {
-                    'face_locations': face_locations,
+                    'face_rect': face_rect,
                     'face_area_ratio': face_ratio,
-                    'jitters_used': self.num_jitters,
-                    'encoding_length': len(encoding)
+                    'encoding_components': {
+                        'lbp': len(lbp_features),
+                        'hog': len(hog_features), 
+                        'gabor': len(gabor_features),
+                        'pca': len(pca_features)
+                    },
+                    'total_features': len(encodings)
                 }
             }
             
@@ -192,24 +220,54 @@ class FaceRecognitionService:
             
             captured_encoding = np.array(capture_result['encoding'])
             
-            # Calculate face distance (lower = more similar)
-            distances = face_recognition.face_distance([known_encoding], captured_encoding)
-            distance = distances[0]
+            # Ensure both encodings have the same length
+            min_length = min(len(known_encoding), len(captured_encoding))
+            known_encoding = known_encoding[:min_length]
+            captured_encoding = captured_encoding[:min_length]
             
-            # Determine match based on tolerance threshold
-            is_match = distance <= self.tolerance
+            # Calculate multiple distance metrics for robust comparison
+            euclidean_dist = np.linalg.norm(known_encoding - captured_encoding)
+            cosine_dist = 1 - np.dot(known_encoding, captured_encoding) / (
+                np.linalg.norm(known_encoding) * np.linalg.norm(captured_encoding)
+            )
+            manhattan_dist = np.sum(np.abs(known_encoding - captured_encoding))
+            
+            # Normalize distances
+            euclidean_norm = euclidean_dist / np.sqrt(len(known_encoding))
+            cosine_norm = cosine_dist
+            manhattan_norm = manhattan_dist / len(known_encoding)
+            
+            # Combined distance with weighted importance
+            combined_distance = (
+                euclidean_norm * 0.4 + 
+                cosine_norm * 0.4 + 
+                manhattan_norm * 0.2
+            )
+            
+            # Determine match based on adaptive tolerance
+            adaptive_tolerance = self.tolerance
+            if capture_result['confidence'] > 80:
+                adaptive_tolerance *= 1.1  # More lenient for high-quality captures
+            elif capture_result['confidence'] < 60:
+                adaptive_tolerance *= 0.9  # Stricter for low-quality captures
+            
+            is_match = combined_distance <= adaptive_tolerance
             
             # Convert distance to user-friendly confidence score
-            # Distance of 0.0 = 100% confidence, tolerance = 50% confidence
-            confidence = max(0, min(100, (1.0 - (distance / (self.tolerance * 2))) * 100))
+            max_expected_distance = 1.0
+            confidence = max(0, min(100, (1.0 - (combined_distance / max_expected_distance)) * 100))
             
             return {
                 'match': is_match,
-                'distance': float(distance),
+                'distance': float(combined_distance),
                 'confidence': confidence,
                 'details': {
-                    'tolerance_used': self.tolerance,
-                    'distance_threshold': self.tolerance,
+                    'tolerance_used': adaptive_tolerance,
+                    'distance_components': {
+                        'euclidean': float(euclidean_norm),
+                        'cosine': float(cosine_norm),
+                        'manhattan': float(manhattan_norm)
+                    },
                     'capture_confidence': capture_result['confidence'],
                     'encoding_quality': 'high' if capture_result['confidence'] > 70 else 'medium' if capture_result['confidence'] > 50 else 'low'
                 }
@@ -222,6 +280,117 @@ class FaceRecognitionService:
                 'confidence': 0.0,
                 'details': {'error': str(e)}
             }
+    
+    def extract_lbp_features(self, gray_image):
+        """Extract Local Binary Pattern features."""
+        height, width = gray_image.shape
+        lbp_features = []
+        
+        # Calculate LBP for each pixel
+        for y in range(1, height - 1):
+            for x in range(1, width - 1):
+                center = gray_image[y, x]
+                binary_string = ''
+                
+                # Check 8 neighbors
+                neighbors = [(-1,-1), (-1,0), (-1,1), (0,1), (1,1), (1,0), (1,-1), (0,-1)]
+                for dy, dx in neighbors:
+                    neighbor = gray_image[y + dy, x + dx]
+                    binary_string += '1' if neighbor >= center else '0'
+                
+                lbp_features.append(int(binary_string, 2))
+        
+        # Create histogram of LBP values
+        hist, _ = np.histogram(lbp_features, bins=256, range=(0, 256))
+        return hist.tolist()
+    
+    def extract_hog_features(self, gray_image):
+        """Extract Histogram of Oriented Gradients features."""
+        # Calculate gradients
+        grad_x = cv2.Sobel(gray_image, cv2.CV_64F, 1, 0, ksize=3)
+        grad_y = cv2.Sobel(gray_image, cv2.CV_64F, 0, 1, ksize=3)
+        
+        # Calculate magnitude and orientation
+        magnitude = np.sqrt(grad_x**2 + grad_y**2)
+        orientation = np.arctan2(grad_y, grad_x) * 180 / np.pi
+        orientation[orientation < 0] += 180
+        
+        # Create HOG descriptor (simplified)
+        hog_features = []
+        cell_size = 8
+        
+        for y in range(0, gray_image.shape[0] - cell_size, cell_size):
+            for x in range(0, gray_image.shape[1] - cell_size, cell_size):
+                cell_mag = magnitude[y:y+cell_size, x:x+cell_size]
+                cell_ori = orientation[y:y+cell_size, x:x+cell_size]
+                
+                # Create histogram for this cell
+                hist, _ = np.histogram(cell_ori.flatten(), bins=9, range=(0, 180), weights=cell_mag.flatten())
+                hog_features.extend(hist.tolist())
+        
+        return hog_features
+    
+    def extract_gabor_features(self, gray_image):
+        """Extract Gabor filter responses."""
+        features = []
+        
+        # Apply Gabor filters with different orientations and frequencies
+        for theta in [0, 45, 90, 135]:
+            for frequency in [0.1, 0.3]:
+                kernel = cv2.getGaborKernel((21, 21), 5, np.radians(theta), 2*np.pi*frequency, 0.5, 0, ktype=cv2.CV_32F)
+                filtered = cv2.filter2D(gray_image, cv2.CV_8UC3, kernel)
+                features.extend([float(np.mean(filtered)), float(np.std(filtered))])
+        
+        return features
+    
+    def extract_pca_features(self, gray_image):
+        """Extract PCA-like features from face regions."""
+        # Divide face into regions and extract statistical features
+        regions = [
+            gray_image[:64, :64],      # Top-left
+            gray_image[:64, 64:],      # Top-right  
+            gray_image[64:, :64],      # Bottom-left
+            gray_image[64:, 64:]       # Bottom-right
+        ]
+        
+        features = []
+        for region in regions:
+            if region.size > 0:
+                features.extend([
+                    float(np.mean(region)),
+                    float(np.std(region)),
+                    float(np.max(region)),
+                    float(np.min(region))
+                ])
+        
+        return features
+    
+    def assess_image_clarity(self, gray_image):
+        """Assess image clarity using Laplacian variance."""
+        laplacian = cv2.Laplacian(gray_image, cv2.CV_64F)
+        variance = laplacian.var()
+        # Normalize to 0-1 range (higher variance = clearer image)
+        return min(1.0, variance / 1000.0)
+    
+    def assess_face_centering(self, face_rect, image_shape):
+        """Assess how well-centered the face is in the image."""
+        x, y, w, h = face_rect
+        height, width = image_shape[:2]
+        
+        # Calculate face center
+        face_center_x = x + w // 2
+        face_center_y = y + h // 2
+        
+        # Calculate image center
+        img_center_x = width // 2
+        img_center_y = height // 2
+        
+        # Calculate distance from center (normalized)
+        distance = np.sqrt((face_center_x - img_center_x)**2 + (face_center_y - img_center_y)**2)
+        max_distance = np.sqrt((width//2)**2 + (height//2)**2)
+        
+        centering_score = 1.0 - (distance / max_distance)
+        return max(0.0, centering_score)
     
     def generate_multiple_encodings(self, image_data_list):
         """
