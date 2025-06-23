@@ -28,11 +28,6 @@ class FaceRecognitionService:
         self.face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
         self.profile_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_profileface.xml')
         
-        # Initialize LBPH face recognizer for robust comparison
-        self.face_recognizer = cv2.face.LBPHFaceRecognizer_create(
-            radius=1, neighbors=8, grid_x=8, grid_y=8, threshold=80.0
-        )
-        
     def preprocess_image(self, image):
         """
         Preprocess image for optimal face recognition:
@@ -67,13 +62,13 @@ class FaceRecognitionService:
         """
         gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY) if len(image.shape) == 3 else image
         
-        # Detect faces using both frontal and profile cascades
+        # Detect faces using both frontal and profile cascades with relaxed parameters
         frontal_faces = self.face_cascade.detectMultiScale(
-            gray, scaleFactor=scale_factor, minNeighbors=min_neighbors, minSize=(80, 80)
+            gray, scaleFactor=1.05, minNeighbors=3, minSize=(30, 30)
         )
         
         profile_faces = self.profile_cascade.detectMultiScale(
-            gray, scaleFactor=scale_factor, minNeighbors=min_neighbors, minSize=(80, 80)
+            gray, scaleFactor=1.05, minNeighbors=3, minSize=(30, 30)
         )
         
         # Combine and select largest face
@@ -447,7 +442,7 @@ def main():
     operation = sys.argv[1]
     
     # Initialize service with attendance system optimized settings
-    service = FaceRecognitionService(tolerance=0.5, num_jitters=10)
+    service = FaceRecognitionService(tolerance=0.5, num_augmentations=10)
     
     if operation == 'encode':
         # Read image data from stdin

@@ -717,7 +717,7 @@ export function registerRoutes(app: Express): Server {
         // Use professional face recognition if encoding is available
         let comparisonResult;
         
-        if (user.faceEncoding) {
+        if (req.user && req.user.faceEncoding) {
           // Use stored face encoding for distance-based comparison
           try {
             const { spawn } = await import('child_process');
@@ -771,18 +771,20 @@ export function registerRoutes(app: Express): Server {
               });
               
               python.stdin.write(JSON.stringify({
-                known_encoding: user.faceEncoding,
+                known_encoding: req.user!.faceEncoding,
                 captured_image: capturedImage
               }));
               python.stdin.end();
             });
             
           } catch (error) {
-            console.error("Professional face recognition failed, using fallback:", error);
+            console.error("Professional face recognition failed:", error.message);
+            console.log(`Falling back to basic comparison for ${req.user.email}`);
             comparisonResult = await compareImages(registeredImage, capturedImage);
           }
         } else {
           // Fallback to previous comparison method
+          console.log(`Using fallback comparison for ${req.user.email} - no face encoding stored`);
           comparisonResult = await compareImages(registeredImage, capturedImage);
         }
         
