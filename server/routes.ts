@@ -7,7 +7,7 @@ import { desc, eq, and } from "drizzle-orm";
 import { db } from "./db";
 import crypto from "crypto";
 import { format, differenceInMinutes } from "date-fns";
-import { azureFaceService } from "./azure-face-service";
+
 
 // Advanced face detection using comprehensive image analysis
 async function detectFaceInImage(imageData: string): Promise<{ hasFace: boolean; confidence: number; details: any }> {
@@ -683,8 +683,7 @@ export function registerRoutes(app: Express): Server {
           console.log(`Face detection failed for ${req.user.email} - captured image:`, capturedFaceResult.details);
           return res.status(400).json({
             verified: false,
-            message: "No face detected! Please ensure your face is clearly visible and well-lit.",
-            method: 'sharp'
+            message: "No face detected! Please ensure your face is clearly visible and well-lit."
           });
         }
         
@@ -694,30 +693,27 @@ export function registerRoutes(app: Express): Server {
           console.log(`Face detection failed for ${req.user.email} - registered image:`, registeredFaceResult.details);
           return res.status(400).json({
             verified: false,
-            message: "Invalid registered face image. Please contact your manager to re-register your face.",
-            method: 'sharp'
+            message: "Invalid registered face image. Please contact your manager to re-register your face."
           });
         }
         
-        console.log(`Sharp face detection passed for ${req.user.email} - Captured: ${capturedFaceResult.confidence}%, Registered: ${registeredFaceResult.confidence}%`);
+        console.log(`Face detection passed for ${req.user.email} - Captured: ${capturedFaceResult.confidence}%, Registered: ${registeredFaceResult.confidence}%`);
         
         // Compare faces with balanced threshold
         const comparisonResult = await compareImages(registeredImage, capturedImage);
         
         if (comparisonResult.isMatch && comparisonResult.similarity >= 35) {
-          console.log(`Sharp face verification successful for ${req.user.email}:`, comparisonResult.details);
+          console.log(`Face verification successful for ${req.user.email}:`, comparisonResult.details);
           res.json({
             verified: true,
             message: `Welcome! Face verification successful (${comparisonResult.similarity.toFixed(1)}% similarity)`,
-            method: 'sharp',
             location: userLocation?.postcode
           });
         } else {
-          console.log(`Sharp face verification failed for ${req.user.email}:`, comparisonResult.details);
+          console.log(`Face verification failed for ${req.user.email}:`, comparisonResult.details);
           res.status(400).json({
             verified: false,
-            message: `Face doesn't match! Please try again with better lighting and face the camera directly. (${comparisonResult.similarity.toFixed(1)}% similarity)`,
-            method: 'sharp'
+            message: `Face doesn't match! Please try again with better lighting and face the camera directly. (${comparisonResult.similarity.toFixed(1)}% similarity)`
           });
         }
       } catch (error) {
