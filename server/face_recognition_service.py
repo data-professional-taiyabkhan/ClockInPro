@@ -43,8 +43,17 @@ def generate_face_encoding(image_data):
         # Load face detector
         face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
         
-        # Detect faces with more relaxed parameters
-        faces = face_cascade.detectMultiScale(gray, scaleFactor=1.05, minNeighbors=3, minSize=(30, 30))
+        # Try multiple detection parameters for better face detection
+        # First try with standard parameters
+        faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(50, 50))
+        
+        # If no faces found, try more relaxed parameters
+        if len(faces) == 0:
+            faces = face_cascade.detectMultiScale(gray, scaleFactor=1.05, minNeighbors=3, minSize=(30, 30))
+        
+        # If still no faces, try very relaxed parameters
+        if len(faces) == 0:
+            faces = face_cascade.detectMultiScale(gray, scaleFactor=1.02, minNeighbors=2, minSize=(20, 20))
         
         if len(faces) == 0:
             return {
@@ -100,9 +109,9 @@ def generate_face_encoding(image_data):
         return {
             "success": True,
             "encoding": encoding,
-            "confidence": confidence,
-            "face_location": [y, x+w, y+h, x],  # top, right, bottom, left format
-            "face_ratio": face_ratio
+            "confidence": float(confidence),
+            "face_location": [int(y), int(x+w), int(y+h), int(x)],  # top, right, bottom, left format
+            "face_ratio": float(face_ratio)
         }
         
     except Exception as e:
@@ -153,11 +162,11 @@ def compare_faces(known_encoding, unknown_image_data, tolerance=0.3):
         
         return {
             "success": True,
-            "match": is_match,
+            "match": bool(is_match),
             "distance": float(normalized_distance),
-            "confidence": confidence,
-            "tolerance": tolerance,
-            "unknown_face_confidence": unknown_result["confidence"]
+            "confidence": float(confidence),
+            "tolerance": float(tolerance),
+            "unknown_face_confidence": float(unknown_result["confidence"])
         }
         
     except Exception as e:
