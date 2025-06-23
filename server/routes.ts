@@ -43,8 +43,8 @@ async function detectFaceInImage(imageData: string): Promise<{ hasFace: boolean;
     const mean = sum / totalPixels;
     const variance = (sumSquares / totalPixels) - (mean * mean);
     
-    // 2. Balanced check for blank/uniform images
-    if (variance < 300) {
+    // 2. Check for obviously blank/uniform images (walls, blank screens)
+    if (variance < 200) {
       return { hasFace: false, confidence: 0, details: { reason: 'Blank or uniform image', variance } };
     }
     
@@ -54,7 +54,7 @@ async function detectFaceInImage(imageData: string): Promise<{ hasFace: boolean;
     const q3 = sortedPixels[Math.floor(totalPixels * 0.75)];
     const iqr = q3 - q1;
     
-    if (iqr < 25) {
+    if (iqr < 15) {
       return { hasFace: false, confidence: 0, details: { reason: 'Poor contrast', iqr } };
     }
     
@@ -140,7 +140,7 @@ async function detectFaceInImage(imageData: string): Promise<{ hasFace: boolean;
     // Center-border difference (0-15 points)
     confidence += Math.min(15, centerBorderDiff / 5);
     
-    const hasFace = confidence >= 45; // Balanced threshold for face detection
+    const hasFace = confidence >= 35; // More lenient threshold for face detection
     
     const details = {
       variance: Math.round(variance),
@@ -213,10 +213,10 @@ async function compareImages(registeredImageData: string, capturedImageData: str
     
     const confidence = (weightedSimilarity + consistency) / 2 * 100;
     
-    // Balanced threshold for good security without being too strict
-    let threshold = 0.60; // Base threshold - balanced for usability
-    if (confidence > 80) threshold = 0.55; // Lower threshold for high confidence
-    if (confidence < 65) threshold = 0.65; // Higher threshold for lower confidence
+    // More lenient threshold for better user experience
+    let threshold = 0.45; // Base threshold - more user-friendly
+    if (confidence > 80) threshold = 0.40; // Lower threshold for high confidence
+    if (confidence < 60) threshold = 0.50; // Slightly higher for very low confidence
     
     const isMatch = weightedSimilarity >= threshold;
     
@@ -679,7 +679,7 @@ export function registerRoutes(app: Express): Server {
         
         // Validate that captured image contains an actual face
         const capturedFaceResult = await detectFaceInImage(capturedImage);
-        if (!capturedFaceResult.hasFace || capturedFaceResult.confidence < 45) {
+        if (!capturedFaceResult.hasFace || capturedFaceResult.confidence < 35) {
           console.log(`Face detection failed for ${req.user.email} - captured image:`, capturedFaceResult.details);
           return res.status(400).json({
             verified: false,
@@ -690,7 +690,7 @@ export function registerRoutes(app: Express): Server {
         
         // Verify that registered image also has a face
         const registeredFaceResult = await detectFaceInImage(registeredImage);
-        if (!registeredFaceResult.hasFace || registeredFaceResult.confidence < 45) {
+        if (!registeredFaceResult.hasFace || registeredFaceResult.confidence < 35) {
           console.log(`Face detection failed for ${req.user.email} - registered image:`, registeredFaceResult.details);
           return res.status(400).json({
             verified: false,
@@ -704,7 +704,7 @@ export function registerRoutes(app: Express): Server {
         // Compare faces with balanced threshold
         const comparisonResult = await compareImages(registeredImage, capturedImage);
         
-        if (comparisonResult.isMatch && comparisonResult.similarity >= 60) {
+        if (comparisonResult.isMatch && comparisonResult.similarity >= 45) {
           console.log(`Sharp face verification successful for ${req.user.email}:`, comparisonResult.details);
           res.json({
             verified: true,
