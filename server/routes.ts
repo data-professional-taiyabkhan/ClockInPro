@@ -862,7 +862,10 @@ export function registerRoutes(app: Express): Server {
           comparisonResult = await compareImages(registeredImage, capturedImage);
         }
         
-        if (comparisonResult.isMatch && comparisonResult.similarity >= 35) {
+        // Use stricter threshold for face_recognition vs legacy comparison
+        const threshold = comparisonResult.details?.method === 'face_recognition_dlib' ? 50 : 35;
+        
+        if (comparisonResult.isMatch && comparisonResult.similarity >= threshold) {
           console.log(`Face verification successful for ${req.user.email}:`, comparisonResult.details);
           res.json({
             verified: true,
