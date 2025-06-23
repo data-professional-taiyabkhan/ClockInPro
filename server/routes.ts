@@ -7,7 +7,7 @@ import { desc, eq, and } from "drizzle-orm";
 import { db } from "./db";
 import crypto from "crypto";
 import { format, differenceInMinutes } from "date-fns";
-// Removed AWS dependencies - using pure Sharp-based face recognition
+import { azureFaceService } from "./azure-face-service";
 
 // Advanced face detection using comprehensive image analysis
 async function detectFaceInImage(imageData: string): Promise<{ hasFace: boolean; confidence: number; details: any }> {
@@ -512,16 +512,32 @@ export function registerRoutes(app: Express): Server {
         return res.status(400).json({ message: "Invalid image data" });
       }
 
-      // Validate with AWS Rekognition if available
-      try {
-        const validation = await rekognitionService.validateImageForRegistration(imageData);
-        if (!validation.isValid) {
-          return res.status(400).json({ 
-            message: validation.message || "Face image validation failed" 
-          });
+      // Validate with Azure Face API if available
+      if (azureFaceService.getAvailability()) {
+        try {
+          const validation = await azureFaceService.validateImageForRegistration(imageData);
+          if (!validation.isValid) {
+            return res.status(400).json({ 
+              message: validation.message,
+              recommendations: validation.recommendations
+            });
+          }
+          console.log(`Azure validation passed for employee ${employeeId} - Quality: ${validation.qualityScore}%`);
+        } catch (error) {
+          console.log("Azure validation error, proceeding with basic validation:", error.message);
         }
-      } catch (error) {
-        console.log("AWS validation unavailable, proceeding with basic validation");
+      } else {
+        // Fallback validation using Sharp
+        try {
+          const faceResult = await detectFaceInImage(imageData);
+          if (!faceResult.hasFace) {
+            return res.status(400).json({ 
+              message: faceResult.details.reason || "No face detected in image"
+            });
+          }
+        } catch (error) {
+          console.log("Sharp validation error, proceeding:", error.message);
+        }
       }
 
       // Update employee with face image URL

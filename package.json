@@ -12,6 +12,8 @@
   },
   "dependencies": {
     "@aws-sdk/client-rekognition": "^3.830.0",
+    "@azure/cognitiveservices-face": "^5.0.0",
+    "@azure/ms-rest-js": "^2.7.0",
     "@hookform/resolvers": "^3.10.0",
     "@jridgewell/trace-mapping": "^0.3.25",
     "@neondatabase/serverless": "^0.10.4",
