@@ -11,6 +11,7 @@ interface CameraFaceCaptureProps {
   title: string;
   description: string;
   isVerification?: boolean;
+  referenceImage?: string; // Base64 image to show for comparison
 }
 
 export function CameraFaceCapture({ 
