@@ -162,7 +162,7 @@ async function detectFaceInImage(imageData: string): Promise<{ hasFace: boolean;
   }
 }
 
-// Advanced face comparison using multiple algorithms
+// Advanced multi-scale face comparison with ML-inspired techniques
 async function compareImages(registeredImageData: string, capturedImageData: string): Promise<{ isMatch: boolean; similarity: number; confidence: number; details: any }> {
   try {
     const sharp = await import('sharp');
@@ -654,7 +654,7 @@ export function registerRoutes(app: Express): Server {
         // Compare faces with balanced threshold
         const comparisonResult = await compareImages(registeredImage, capturedImage);
         
-        if (comparisonResult.isMatch && comparisonResult.similarity >= 25) {
+        if (comparisonResult.isMatch && comparisonResult.similarity >= 22) {
           console.log(`Face verification successful for ${req.user.email}:`, comparisonResult.details);
           res.json({
             verified: true,
