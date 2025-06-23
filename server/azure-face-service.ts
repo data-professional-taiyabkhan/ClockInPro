@@ -259,7 +259,7 @@ export class AzureFaceService {
       
       // Azure's isIdentical is based on their internal threshold
       // We can also apply our own threshold for additional control
-      const customThreshold = 0.7; // 70% confidence threshold
+      const customThreshold = 0.6; // 60% confidence threshold - balanced for usability
       const isMatch = verifyResult.isIdentical && verifyResult.confidence >= customThreshold;
 
       return {
