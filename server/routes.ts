@@ -529,77 +529,46 @@ export function registerRoutes(app: Express): Server {
         });
       }
 
-      // Generate face encoding using the professional service
+      // Extract face descriptor if provided in the image data
+      let faceDescriptor = null;
+      let actualImageData = imageData;
+      let descriptorConfidence = 0;
+
       try {
-        const { spawn } = await import('child_process');
-        
-        const encodingResult = await new Promise<any>((resolve, reject) => {
-          const python = spawn('python3', ['server/face_recognition_service.py', 'encode']);
+        // Check if imageData contains face descriptor from face-api.js
+        const parsedData = JSON.parse(imageData);
+        if (parsedData.descriptor && Array.isArray(parsedData.descriptor) && parsedData.descriptor.length === 128) {
+          faceDescriptor = parsedData.descriptor;
+          actualImageData = parsedData.imageData;
+          descriptorConfidence = parsedData.confidence || 70;
           
-          let stdout = '';
-          let stderr = '';
-          
-          python.stdout.on('data', (data) => {
-            stdout += data.toString();
-          });
-          
-          python.stderr.on('data', (data) => {
-            stderr += data.toString();
-          });
-          
-          python.on('close', (code) => {
-            if (code !== 0) {
-              reject(new Error(`Encoding failed: ${stderr}`));
-              return;
-            }
-            
-            try {
-              resolve(JSON.parse(stdout));
-            } catch (parseError) {
-              reject(new Error('Failed to parse encoding result'));
-            }
-          });
-          
-          python.on('error', (error) => {
-            reject(error);
-          });
-          
-          python.stdin.write(JSON.stringify({ image_data: imageData }));
-          python.stdin.end();
-        });
-        
-        if (!encodingResult.success) {
-          return res.status(400).json({
-            message: "Failed to generate face encoding: " + encodingResult.details.error
-          });
+          console.log(`Face descriptor extracted: 128-dimensional vector with ${descriptorConfidence.toFixed(1)}% confidence`);
         }
-        
-        // Update employee with face image and encoding
-        const updatedUser = await storage.updateUserFaceEncoding(
-          employeeId, 
-          imageData, 
-          encodingResult.encoding,
-          encodingResult.confidence
-        );
-        
-        const { password: _, ...safeUser } = updatedUser;
-        res.json({
-          message: "Employee face image and encoding updated successfully",
-          user: safeUser,
-          encoding_quality: encodingResult.details
-        });
-        
-      } catch (encodingError) {
-        console.error("Face encoding error:", encodingError);
-        // Fallback to just storing the image
-        const updatedUser = await storage.updateUserFaceImage(employeeId, imageData);
-        const { password: _, ...safeUser } = updatedUser;
-        res.json({
-          message: "Employee face image updated (encoding failed - will use fallback comparison)",
-          user: safeUser,
-          warning: "Face encoding generation failed"
-        });
+      } catch {
+        // imageData is just the image, not JSON - that's fine for fallback
+        console.log('No face descriptor found in upload, storing image only');
       }
+
+      // Update employee with face image and descriptor
+      const updatedUser = await storage.updateUserFaceEncoding(
+        employeeId, 
+        actualImageData, 
+        faceDescriptor,
+        descriptorConfidence
+      );
+      
+      const { password: _, ...safeUser } = updatedUser;
+      res.json({
+        message: faceDescriptor 
+          ? "Employee face image and 128D descriptor updated successfully"
+          : "Employee face image updated (descriptor extraction failed - will use fallback)",
+        user: safeUser,
+        encoding_quality: {
+          hasDescriptor: !!faceDescriptor,
+          confidence: descriptorConfidence,
+          method: faceDescriptor ? 'face-api.js' : 'image-only'
+        }
+      });
     } catch (error) {
       console.error("Face image upload error:", error);
       res.status(500).json({ message: "Failed to upload face image" });
@@ -717,75 +686,14 @@ export function registerRoutes(app: Express): Server {
         // Use professional face recognition if encoding is available
         let comparisonResult;
         
-        if (req.user && req.user.faceEncoding) {
-          // Use stored face encoding for distance-based comparison
-          try {
-            const { spawn } = await import('child_process');
-            
-            comparisonResult = await new Promise<any>((resolve, reject) => {
-              const python = spawn('python3', ['server/face_recognition_service.py', 'compare']);
-              
-              let stdout = '';
-              let stderr = '';
-              
-              python.stdout.on('data', (data) => {
-                stdout += data.toString();
-              });
-              
-              python.stderr.on('data', (data) => {
-                stderr += data.toString();
-              });
-              
-              python.on('close', (code) => {
-                if (code !== 0) {
-                  console.error('Face recognition service error:', stderr);
-                  resolve({
-                    isMatch: false,
-                    similarity: 0,
-                    confidence: 0,
-                    details: { error: `Service failed: ${stderr}` }
-                  });
-                  return;
-                }
-                
-                try {
-                  const result = JSON.parse(stdout);
-                  resolve({
-                    isMatch: result.match,
-                    similarity: result.confidence,
-                    confidence: result.confidence,
-                    details: {
-                      distance: result.distance,
-                      tolerance: result.details.tolerance_used,
-                      method: 'face_recognition_dlib'
-                    }
-                  });
-                } catch (parseError) {
-                  resolve({
-                    isMatch: false,
-                    similarity: 0,
-                    confidence: 0,
-                    details: { error: 'Parse failed' }
-                  });
-                }
-              });
-              
-              python.stdin.write(JSON.stringify({
-                known_encoding: req.user!.faceEncoding,
-                captured_image: capturedImage
-              }));
-              python.stdin.end();
-            });
-            
-          } catch (error) {
-            console.error("Professional face recognition failed:", error.message);
-            console.log(`Falling back to basic comparison for ${req.user.email}`);
-            comparisonResult = await compareImages(registeredImage, capturedImage);
-          }
+        if (req.user && req.user.faceEncoding && Array.isArray(req.user.faceEncoding) && req.user.faceEncoding.length === 128) {
+          // Use professional 128-dimensional face descriptor comparison
+          console.log(`Using 128D descriptor comparison for ${req.user.email}`);
+          comparisonResult = await compareFaceDescriptors(req.user.faceEncoding, capturedImage);
         } else {
-          // Fallback to previous comparison method
-          console.log(`Using fallback comparison for ${req.user.email} - no face encoding stored`);
-          comparisonResult = await compareImages(registeredImage, capturedImage);
+          // Fallback for users without descriptors
+          console.log(`Using legacy comparison for ${req.user.email} - no valid 128D descriptor stored`);
+          comparisonResult = await compareLegacyImages(registeredImage, capturedImage);
         }
         
         if (comparisonResult.isMatch && comparisonResult.similarity >= 35) {
