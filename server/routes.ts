@@ -43,8 +43,8 @@ async function detectFaceInImage(imageData: string): Promise<{ hasFace: boolean;
     const mean = sum / totalPixels;
     const variance = (sumSquares / totalPixels) - (mean * mean);
     
-    // 2. Check for blank/uniform images
-    if (variance < 100) {
+    // 2. Much stricter check for blank/uniform images
+    if (variance < 500) {
       return { hasFace: false, confidence: 0, details: { reason: 'Blank or uniform image', variance } };
     }
     
@@ -54,7 +54,7 @@ async function detectFaceInImage(imageData: string): Promise<{ hasFace: boolean;
     const q3 = sortedPixels[Math.floor(totalPixels * 0.75)];
     const iqr = q3 - q1;
     
-    if (iqr < 20) {
+    if (iqr < 40) {
       return { hasFace: false, confidence: 0, details: { reason: 'Poor contrast', iqr } };
     }
     
@@ -140,7 +140,7 @@ async function detectFaceInImage(imageData: string): Promise<{ hasFace: boolean;
     // Center-border difference (0-15 points)
     confidence += Math.min(15, centerBorderDiff / 5);
     
-    const hasFace = confidence >= 40; // Threshold for face detection
+    const hasFace = confidence >= 60; // Much stricter threshold for face detection
     
     const details = {
       variance: Math.round(variance),
@@ -213,10 +213,10 @@ async function compareImages(registeredImageData: string, capturedImageData: str
     
     const confidence = (weightedSimilarity + consistency) / 2 * 100;
     
-    // Dynamic threshold based on confidence
-    let threshold = 0.62; // Base threshold
-    if (confidence > 80) threshold = 0.58; // Lower threshold for high confidence
-    if (confidence < 60) threshold = 0.68; // Higher threshold for low confidence
+    // Much stricter threshold to prevent false positives
+    let threshold = 0.70; // Base threshold - higher for security
+    if (confidence > 85) threshold = 0.65; // Lower threshold only for very high confidence
+    if (confidence < 70) threshold = 0.75; // Higher threshold for lower confidence
     
     const isMatch = weightedSimilarity >= threshold;
     
@@ -624,63 +624,108 @@ export function registerRoutes(app: Express): Server {
         }
       }
 
-      // Face verification using AWS Rekognition
+      // Enhanced face verification using Azure Face API with Sharp fallback
+      console.log(`Starting face verification for ${req.user.email}`);
+      
       try {
-        const comparison = await rekognitionService.compareFaces(
-          req.user.faceImageUrl,
-          imageData
-        );
+        const capturedImage = imageData;
+        const registeredImage = req.user.faceImageUrl;
+        
+        // Basic validation
+        const capturedBase64 = capturedImage.replace(/^data:image\/[a-z]+;base64,/, '');
+        if (capturedBase64.length < 1000) {
+          return res.status(400).json({
+            verified: false,
+            message: "Image appears to be too small or invalid"
+          });
+        }
 
-        if (comparison.isMatch) {
-          res.json({ 
-            verified: true, 
-            message: "Face verification successful",
-            similarity: comparison.similarity,
-            location: userLocation?.postcode 
+        // Try Azure Face API first (most accurate)
+        if (azureFaceService.getAvailability()) {
+          console.log(`Using Azure Face API for verification - ${req.user.email}`);
+          
+          try {
+            const comparison = await azureFaceService.compareFaces(registeredImage, capturedImage);
+
+            console.log(`Azure Face verification result for ${req.user.email}:`, {
+              isMatch: comparison.isMatch,
+              confidence: comparison.confidence.toFixed(1),
+              similarity: comparison.similarity.toFixed(1)
+            });
+            
+            if (comparison.isMatch) {
+              res.json({
+                verified: true,
+                message: `Welcome! Face verification successful (${comparison.similarity.toFixed(1)}% confidence)`,
+                method: 'azure',
+                location: userLocation?.postcode
+              });
+            } else {
+              res.status(400).json({
+                verified: false,
+                message: `Face doesn't match! Please try again. (${comparison.confidence.toFixed(1)}% confidence)`,
+                method: 'azure'
+              });
+            }
+            return;
+          } catch (azureError) {
+            console.log(`Azure Face API error for ${req.user.email}, falling back to Sharp:`, azureError.message);
+          }
+        } else {
+          console.log(`Azure Face API not available for ${req.user.email}, using Sharp fallback`);
+        }
+        // Fallback to Sharp-based detection and comparison with stricter validation
+        console.log(`Using Sharp fallback for face verification - ${req.user.email}`);
+        
+        // STRICT: Validate that captured image contains an actual face
+        const capturedFaceResult = await detectFaceInImage(capturedImage);
+        if (!capturedFaceResult.hasFace || capturedFaceResult.confidence < 60) {
+          console.log(`Face detection failed for ${req.user.email} - captured image:`, capturedFaceResult.details);
+          return res.status(400).json({
+            verified: false,
+            message: "No face detected! Please ensure your face is clearly visible and well-lit.",
+            method: 'sharp'
+          });
+        }
+        
+        // STRICT: Verify that registered image also has a face
+        const registeredFaceResult = await detectFaceInImage(registeredImage);
+        if (!registeredFaceResult.hasFace || registeredFaceResult.confidence < 60) {
+          console.log(`Face detection failed for ${req.user.email} - registered image:`, registeredFaceResult.details);
+          return res.status(400).json({
+            verified: false,
+            message: "Invalid registered face image. Please contact your manager to re-register your face.",
+            method: 'sharp'
+          });
+        }
+        
+        console.log(`Sharp face detection passed for ${req.user.email} - Captured: ${capturedFaceResult.confidence}%, Registered: ${registeredFaceResult.confidence}%`);
+        
+        // STRICT: Compare faces with higher threshold
+        const comparisonResult = await compareImages(registeredImage, capturedImage);
+        
+        if (comparisonResult.isMatch && comparisonResult.similarity >= 70) {
+          console.log(`Sharp face verification successful for ${req.user.email}:`, comparisonResult.details);
+          res.json({
+            verified: true,
+            message: `Welcome! Face verification successful (${comparisonResult.similarity.toFixed(1)}% similarity)`,
+            method: 'sharp',
+            location: userLocation?.postcode
           });
         } else {
-          res.status(400).json({ 
-            verified: false, 
-            message: `Face verification failed. Similarity: ${comparison.similarity.toFixed(1)}%` 
+          console.log(`Sharp face verification failed for ${req.user.email}:`, comparisonResult.details);
+          res.status(400).json({
+            verified: false,
+            message: `Face doesn't match! Please try again with better lighting and face the camera directly. (${comparisonResult.similarity.toFixed(1)}% similarity)`,
+            method: 'sharp'
           });
         }
       } catch (error) {
         console.error("Face verification error:", error);
-        
-        // Enhanced fallback verification using image analysis
-        try {
-          const registeredImage = req.user.faceImageUrl;
-          const capturedImage = imageData;
-          
-          // Check if captured image appears to contain a face (basic validation)
-          const capturedBase64 = capturedImage.replace(/^data:image\/[a-z]+;base64,/, '');
-          if (capturedBase64.length < 1000) {
-            return res.status(400).json({
-              verified: false,
-              message: "Image appears to be too small or invalid"
-            });
-          }
-          
-          const isVerified = await compareImages(registeredImage, capturedImage);
-          
-          if (isVerified) {
-            res.json({
-              verified: true,
-              message: "Face verification successful (enhanced mode)",
-            });
-          } else {
-            res.status(400).json({
-              verified: false,
-              message: "Face verification failed - images do not match sufficiently"
-            });
-          }
-        } catch (fallbackError) {
-          console.error("Fallback verification error:", fallbackError);
-          res.status(400).json({
-            verified: false,
-            message: "Face verification failed - unable to process images"
-          });
-        }
+        res.status(500).json({
+          verified: false,
+          message: "Face verification service unavailable"
+        });
       }
     } catch (error) {
       console.error("Face verification error:", error);

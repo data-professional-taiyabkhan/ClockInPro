@@ -6,8 +6,9 @@ export class AzureFaceService {
   private isAvailable: boolean = false;
 
   constructor() {
-    const apiKey = process.env.AZURE_FACE_API_KEY;
-    const endpoint = process.env.AZURE_FACE_ENDPOINT;
+    // Try environment variables first, then fallback to hardcoded values for testing
+    const apiKey = process.env.AZURE_FACE_API_KEY || '518Npv7g8HgdyzJWxvPKTEdMQ76IbAyPA0dM0SmV5Ho73dmMCMpiJQQJ99BFACYeBjFXJ3w3AAAKACOGVRM7';
+    const endpoint = process.env.AZURE_FACE_ENDPOINT || 'https://clockinpro.cognitiveservices.azure.com/';
 
     if (!apiKey || !endpoint) {
       console.log('Azure Face API credentials not provided. Service will be unavailable.');
