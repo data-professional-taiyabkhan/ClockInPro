@@ -8,6 +8,92 @@ import { db } from "./db";
 import crypto from "crypto";
 import { format, differenceInMinutes } from "date-fns";
 
+// Calculate Euclidean distance between two 128-dimensional vectors
+function calculateEuclideanDistance(desc1: number[], desc2: number[]): number {
+  if (desc1.length !== desc2.length) {
+    throw new Error('Descriptor lengths must match');
+  }
+  
+  let sum = 0;
+  for (let i = 0; i < desc1.length; i++) {
+    const diff = desc1[i] - desc2[i];
+    sum += diff * diff;
+  }
+  
+  return Math.sqrt(sum);
+}
+
+// Professional face recognition using 128-dimensional descriptors and Euclidean distance
+async function compareFaceDescriptors(storedDescriptor: number[], capturedFaceData: string): Promise<{ isMatch: boolean; similarity: number; confidence: number; details: any }> {
+  try {
+    // Parse captured face data
+    let capturedData;
+    try {
+      capturedData = JSON.parse(capturedFaceData);
+    } catch {
+      // If not JSON, treat as legacy image data
+      console.log('Invalid JSON in captured face data, using legacy comparison');
+      return await compareImages(null, capturedFaceData);
+    }
+
+    const capturedDescriptor = capturedData.descriptor;
+    if (!capturedDescriptor || !Array.isArray(capturedDescriptor) || capturedDescriptor.length !== 128) {
+      console.log('Invalid captured descriptor, falling back to legacy comparison');
+      return await compareImages(null, capturedData.imageData || capturedFaceData);
+    }
+
+    // Calculate Euclidean distance between 128-dimensional face descriptors
+    const distance = calculateEuclideanDistance(storedDescriptor, capturedDescriptor);
+    
+    // Face-api.js typically uses threshold around 0.6 for face recognition
+    const threshold = 0.6;
+    const isMatch = distance <= threshold;
+    
+    // Convert distance to similarity percentage (inverse relationship)
+    const similarity = Math.max(0, Math.min(100, (1 - (distance / 1.2)) * 100));
+    
+    // Confidence based on distance and capture quality
+    const captureConfidence = capturedData.confidence || 50;
+    const distanceConfidence = Math.max(0, 100 - (distance * 100));
+    const confidence = (distanceConfidence * 0.7 + captureConfidence * 0.3);
+
+    const details = {
+      euclideanDistance: distance,
+      threshold,
+      method: 'face-api.js_128d',
+      captureConfidence,
+      descriptorLength: capturedDescriptor.length,
+      debug: {
+        storedDescriptorLength: storedDescriptor.length,
+        capturedDescriptorLength: capturedDescriptor.length,
+        distanceScore: distanceConfidence,
+        combinedConfidence: confidence
+      }
+    };
+
+    // Debug logging for development
+    console.log(`Face descriptor comparison:`, {
+      distance: distance.toFixed(4),
+      threshold,
+      similarity: similarity.toFixed(1),
+      confidence: confidence.toFixed(1),
+      match: isMatch,
+      method: 'euclidean_128d'
+    });
+
+    return {
+      isMatch,
+      similarity,
+      confidence,
+      details
+    };
+    
+  } catch (error) {
+    console.error('Face descriptor comparison error:', error);
+    return { isMatch: false, similarity: 0, confidence: 0, details: { error: error.message } };
+  }
+}
+
 
 // Enhanced face detection with advanced computer vision techniques
 async function detectFaceInImage(imageData: string): Promise<{ hasFace: boolean; confidence: number; details: any }> {
@@ -693,7 +779,7 @@ export function registerRoutes(app: Express): Server {
         } else {
           // Fallback for users without descriptors
           console.log(`Using legacy comparison for ${req.user.email} - no valid 128D descriptor stored`);
-          comparisonResult = await compareLegacyImages(registeredImage, capturedImage);
+          comparisonResult = await compareImages(registeredImage, capturedImage);
         }
         
         if (comparisonResult.isMatch && comparisonResult.similarity >= 35) {
