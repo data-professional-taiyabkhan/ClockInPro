@@ -512,32 +512,21 @@ export function registerRoutes(app: Express): Server {
         return res.status(400).json({ message: "Invalid image data" });
       }
 
-      // Validate with Azure Face API if available
-      if (azureFaceService.getAvailability()) {
-        try {
-          const validation = await azureFaceService.validateImageForRegistration(imageData);
-          if (!validation.isValid) {
-            return res.status(400).json({ 
-              message: validation.message,
-              recommendations: validation.recommendations
-            });
-          }
-          console.log(`Azure validation passed for employee ${employeeId} - Quality: ${validation.qualityScore}%`);
-        } catch (error) {
-          console.log("Azure validation error, proceeding with basic validation:", error.message);
+      // Validate face image using computer vision
+      try {
+        const faceResult = await detectFaceInImage(imageData);
+        if (!faceResult.hasFace || faceResult.confidence < 35) {
+          return res.status(400).json({ 
+            message: faceResult.details.reason || "No face detected in image. Please ensure the photo shows a clear face.",
+            confidence: faceResult.confidence
+          });
         }
-      } else {
-        // Fallback validation using Sharp
-        try {
-          const faceResult = await detectFaceInImage(imageData);
-          if (!faceResult.hasFace) {
-            return res.status(400).json({ 
-              message: faceResult.details.reason || "No face detected in image"
-            });
-          }
-        } catch (error) {
-          console.log("Sharp validation error, proceeding:", error.message);
-        }
+        console.log(`Face validation passed for employee ${employeeId} - Confidence: ${faceResult.confidence}%`);
+      } catch (error) {
+        console.log("Face validation error:", error.message);
+        return res.status(400).json({
+          message: "Failed to validate face image. Please try again with a clearer photo."
+        });
       }
 
       // Update employee with face image URL
