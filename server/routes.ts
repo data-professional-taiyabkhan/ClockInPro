@@ -654,7 +654,7 @@ export function registerRoutes(app: Express): Server {
         // Compare faces with balanced threshold
         const comparisonResult = await compareImages(registeredImage, capturedImage);
         
-        if (comparisonResult.isMatch && comparisonResult.similarity >= 22) {
+        if (comparisonResult.isMatch && comparisonResult.similarity >= 75) {
           console.log(`Face verification successful for ${req.user.email}:`, comparisonResult.details);
           res.json({
             verified: true,
