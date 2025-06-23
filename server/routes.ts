@@ -213,10 +213,10 @@ async function compareImages(registeredImageData: string, capturedImageData: str
     
     const confidence = (weightedSimilarity + consistency) / 2 * 100;
     
-    // Even more lenient threshold for better user experience
-    let threshold = 0.35; // Base threshold - very user-friendly
-    if (confidence > 80) threshold = 0.30; // Lower threshold for high confidence
-    if (confidence < 60) threshold = 0.40; // Slightly higher for very low confidence
+    // User-friendly threshold for real-world usage
+    let threshold = 0.30; // Base threshold - practical for daily use
+    if (confidence > 80) threshold = 0.25; // Lower threshold for high confidence
+    if (confidence < 60) threshold = 0.35; // Slightly higher for very low confidence
     
     const isMatch = weightedSimilarity >= threshold;
     
@@ -654,7 +654,7 @@ export function registerRoutes(app: Express): Server {
         // Compare faces with balanced threshold
         const comparisonResult = await compareImages(registeredImage, capturedImage);
         
-        if (comparisonResult.isMatch && comparisonResult.similarity >= 35) {
+        if (comparisonResult.isMatch && comparisonResult.similarity >= 30) {
           console.log(`Face verification successful for ${req.user.email}:`, comparisonResult.details);
           res.json({
             verified: true,
