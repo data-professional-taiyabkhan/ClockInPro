@@ -529,14 +529,77 @@ export function registerRoutes(app: Express): Server {
         });
       }
 
-      // Update employee with face image URL
-      const updatedUser = await storage.updateUserFaceImage(employeeId, imageData);
-      
-      const { password: _, ...safeUser } = updatedUser;
-      res.json({
-        message: "Employee face image updated successfully",
-        user: safeUser
-      });
+      // Generate face encoding using the professional service
+      try {
+        const { spawn } = await import('child_process');
+        
+        const encodingResult = await new Promise<any>((resolve, reject) => {
+          const python = spawn('python3', ['server/face_recognition_service.py', 'encode']);
+          
+          let stdout = '';
+          let stderr = '';
+          
+          python.stdout.on('data', (data) => {
+            stdout += data.toString();
+          });
+          
+          python.stderr.on('data', (data) => {
+            stderr += data.toString();
+          });
+          
+          python.on('close', (code) => {
+            if (code !== 0) {
+              reject(new Error(`Encoding failed: ${stderr}`));
+              return;
+            }
+            
+            try {
+              resolve(JSON.parse(stdout));
+            } catch (parseError) {
+              reject(new Error('Failed to parse encoding result'));
+            }
+          });
+          
+          python.on('error', (error) => {
+            reject(error);
+          });
+          
+          python.stdin.write(JSON.stringify({ image_data: imageData }));
+          python.stdin.end();
+        });
+        
+        if (!encodingResult.success) {
+          return res.status(400).json({
+            message: "Failed to generate face encoding: " + encodingResult.details.error
+          });
+        }
+        
+        // Update employee with face image and encoding
+        const updatedUser = await storage.updateUserFaceEncoding(
+          employeeId, 
+          imageData, 
+          encodingResult.encoding,
+          encodingResult.confidence
+        );
+        
+        const { password: _, ...safeUser } = updatedUser;
+        res.json({
+          message: "Employee face image and encoding updated successfully",
+          user: safeUser,
+          encoding_quality: encodingResult.details
+        });
+        
+      } catch (encodingError) {
+        console.error("Face encoding error:", encodingError);
+        // Fallback to just storing the image
+        const updatedUser = await storage.updateUserFaceImage(employeeId, imageData);
+        const { password: _, ...safeUser } = updatedUser;
+        res.json({
+          message: "Employee face image updated (encoding failed - will use fallback comparison)",
+          user: safeUser,
+          warning: "Face encoding generation failed"
+        });
+      }
     } catch (error) {
       console.error("Face image upload error:", error);
       res.status(500).json({ message: "Failed to upload face image" });
@@ -651,8 +714,77 @@ export function registerRoutes(app: Express): Server {
         
         console.log(`Face detection passed for ${req.user.email} - Captured: ${capturedFaceResult.confidence}%, Registered: ${registeredFaceResult.confidence}%`);
         
-        // Compare faces with balanced threshold
-        const comparisonResult = await compareImages(registeredImage, capturedImage);
+        // Use professional face recognition if encoding is available
+        let comparisonResult;
+        
+        if (user.faceEncoding) {
+          // Use stored face encoding for distance-based comparison
+          try {
+            const { spawn } = await import('child_process');
+            
+            comparisonResult = await new Promise<any>((resolve, reject) => {
+              const python = spawn('python3', ['server/face_recognition_service.py', 'compare']);
+              
+              let stdout = '';
+              let stderr = '';
+              
+              python.stdout.on('data', (data) => {
+                stdout += data.toString();
+              });
+              
+              python.stderr.on('data', (data) => {
+                stderr += data.toString();
+              });
+              
+              python.on('close', (code) => {
+                if (code !== 0) {
+                  console.error('Face recognition service error:', stderr);
+                  resolve({
+                    isMatch: false,
+                    similarity: 0,
+                    confidence: 0,
+                    details: { error: `Service failed: ${stderr}` }
+                  });
+                  return;
+                }
+                
+                try {
+                  const result = JSON.parse(stdout);
+                  resolve({
+                    isMatch: result.match,
+                    similarity: result.confidence,
+                    confidence: result.confidence,
+                    details: {
+                      distance: result.distance,
+                      tolerance: result.details.tolerance_used,
+                      method: 'face_recognition_dlib'
+                    }
+                  });
+                } catch (parseError) {
+                  resolve({
+                    isMatch: false,
+                    similarity: 0,
+                    confidence: 0,
+                    details: { error: 'Parse failed' }
+                  });
+                }
+              });
+              
+              python.stdin.write(JSON.stringify({
+                known_encoding: user.faceEncoding,
+                captured_image: capturedImage
+              }));
+              python.stdin.end();
+            });
+            
+          } catch (error) {
+            console.error("Professional face recognition failed, using fallback:", error);
+            comparisonResult = await compareImages(registeredImage, capturedImage);
+          }
+        } else {
+          // Fallback to previous comparison method
+          comparisonResult = await compareImages(registeredImage, capturedImage);
+        }
         
         if (comparisonResult.isMatch && comparisonResult.similarity >= 35) {
           console.log(`Face verification successful for ${req.user.email}:`, comparisonResult.details);

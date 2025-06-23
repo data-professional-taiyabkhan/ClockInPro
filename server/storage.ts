@@ -25,6 +25,7 @@ export interface IStorage {
   getUserByEmail(email: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
   updateUserFaceImage(userId: number, faceImageUrl: string): Promise<User>;
+  updateUserFaceEncoding(userId: number, faceImageUrl: string, faceEncoding: any, confidence: number): Promise<User>;
   getAllEmployees(): Promise<User[]>;
   deleteUser(id: number): Promise<void>;
   
