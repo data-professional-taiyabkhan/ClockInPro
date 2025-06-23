@@ -23,70 +23,114 @@ function calculateEuclideanDistance(desc1: number[], desc2: number[]): number {
   return Math.sqrt(sum);
 }
 
-// Professional face recognition using 128-dimensional descriptors and Euclidean distance
-async function compareFaceDescriptors(storedDescriptor: number[], capturedFaceData: string): Promise<{ isMatch: boolean; similarity: number; confidence: number; details: any }> {
+// Professional face recognition using Python face_recognition library
+async function compareFaceDescriptors(storedEncoding: number[], capturedImageData: string): Promise<{ isMatch: boolean; similarity: number; confidence: number; details: any }> {
   try {
-    // Parse captured face data
-    let capturedData;
-    try {
-      capturedData = JSON.parse(capturedFaceData);
-    } catch {
-      // If not JSON, treat as legacy image data
-      console.log('Invalid JSON in captured face data, using legacy comparison');
-      return await compareImages(null, capturedFaceData);
-    }
-
-    const capturedDescriptor = capturedData.descriptor;
-    if (!capturedDescriptor || !Array.isArray(capturedDescriptor) || capturedDescriptor.length !== 128) {
-      console.log('Invalid captured descriptor, falling back to legacy comparison');
-      return await compareImages(null, capturedData.imageData || capturedFaceData);
-    }
-
-    // Calculate Euclidean distance between 128-dimensional face descriptors
-    const distance = calculateEuclideanDistance(storedDescriptor, capturedDescriptor);
+    const { spawn } = await import('child_process');
     
-    // Face-api.js typically uses threshold around 0.6 for face recognition
-    const threshold = 0.6;
-    const isMatch = distance <= threshold;
-    
-    // Convert distance to similarity percentage (inverse relationship)
-    const similarity = Math.max(0, Math.min(100, (1 - (distance / 1.2)) * 100));
-    
-    // Confidence based on distance and capture quality
-    const captureConfidence = capturedData.confidence || 50;
-    const distanceConfidence = Math.max(0, 100 - (distance * 100));
-    const confidence = (distanceConfidence * 0.7 + captureConfidence * 0.3);
-
-    const details = {
-      euclideanDistance: distance,
-      threshold,
-      method: 'face-api.js_128d',
-      captureConfidence,
-      descriptorLength: capturedDescriptor.length,
-      debug: {
-        storedDescriptorLength: storedDescriptor.length,
-        capturedDescriptorLength: capturedDescriptor.length,
-        distanceScore: distanceConfidence,
-        combinedConfidence: confidence
-      }
-    };
-
-    // Debug logging for development
-    console.log(`Face descriptor comparison:`, {
-      distance: distance.toFixed(4),
-      threshold,
-      similarity: similarity.toFixed(1),
-      confidence: confidence.toFixed(1),
-      match: isMatch,
-      method: 'euclidean_128d'
+    return new Promise((resolve) => {
+      const python = spawn('python3', ['server/face_recognition_service.py', 'compare']);
+      
+      let stdout = '';
+      let stderr = '';
+      
+      python.stdout.on('data', (data) => {
+        stdout += data.toString();
+      });
+      
+      python.stderr.on('data', (data) => {
+        stderr += data.toString();
+      });
+      
+      python.on('close', (code) => {
+        if (code !== 0) {
+          console.error('Face recognition service error:', stderr);
+          resolve({
+            isMatch: false,
+            similarity: 0,
+            confidence: 0,
+            details: { error: `Face recognition service failed: ${stderr}` }
+          });
+          return;
+        }
+        
+        try {
+          const result = JSON.parse(stdout);
+          
+          if (!result.success) {
+            resolve({
+              isMatch: false,
+              similarity: 0,
+              confidence: 0,
+              details: { error: result.error, method: 'face_recognition' }
+            });
+            return;
+          }
+          
+          // Convert face_recognition results to our format
+          const similarity = result.confidence;
+          const isMatch = result.match;
+          
+          const details = {
+            distance: result.distance,
+            tolerance: result.tolerance,
+            method: 'face_recognition_dlib',
+            captureConfidence: result.unknown_face_confidence,
+            debug: {
+              distance: result.distance.toFixed(4),
+              threshold: result.tolerance,
+              match: isMatch
+            }
+          };
+          
+          // Debug logging for development
+          console.log(`Face recognition comparison:`, {
+            distance: result.distance.toFixed(4),
+            tolerance: result.tolerance,
+            similarity: similarity.toFixed(1),
+            confidence: result.confidence.toFixed(1),
+            match: isMatch,
+            method: 'face_recognition_dlib'
+          });
+          
+          resolve({
+            isMatch,
+            similarity,
+            confidence: result.confidence,
+            details
+          });
+          
+        } catch (parseError) {
+          console.error('Failed to parse face recognition result:', parseError);
+          resolve({
+            isMatch: false,
+            similarity: 0,
+            confidence: 0,
+            details: { error: 'Failed to parse recognition result' }
+          });
+        }
+      });
+      
+      python.on('error', (error) => {
+        console.error('Failed to start face recognition service:', error);
+        resolve({
+          isMatch: false,
+          similarity: 0,
+          confidence: 0,
+          details: { error: `Failed to start face recognition: ${error.message}` }
+        });
+      });
+      
+      // Send comparison data to Python service
+      const inputData = {
+        known_encoding: storedEncoding,
+        unknown_image: capturedImageData,
+        tolerance: 0.3  // Stricter tolerance for attendance systems
+      };
+      
+      python.stdin.write(JSON.stringify(inputData));
+      python.stdin.end();
     });
-
-    return {
-      isMatch,
-      similarity,
-      confidence,
-      details
-    };
     
   } catch (error) {
     console.error('Face descriptor comparison error:', error);
@@ -615,46 +659,82 @@ export function registerRoutes(app: Express): Server {
         });
       }
 
-      // Extract face descriptor if provided in the image data
-      let faceDescriptor = null;
-      let actualImageData = imageData;
-      let descriptorConfidence = 0;
-
+      // Generate face encoding using Python face_recognition library
       try {
-        // Check if imageData contains face descriptor from face-api.js
-        const parsedData = JSON.parse(imageData);
-        if (parsedData.descriptor && Array.isArray(parsedData.descriptor) && parsedData.descriptor.length === 128) {
-          faceDescriptor = parsedData.descriptor;
-          actualImageData = parsedData.imageData;
-          descriptorConfidence = parsedData.confidence || 70;
+        const { spawn } = await import('child_process');
+        
+        const encodingResult = await new Promise<any>((resolve, reject) => {
+          const python = spawn('python3', ['server/face_recognition_service.py', 'encode']);
           
-          console.log(`Face descriptor extracted: 128-dimensional vector with ${descriptorConfidence.toFixed(1)}% confidence`);
+          let stdout = '';
+          let stderr = '';
+          
+          python.stdout.on('data', (data) => {
+            stdout += data.toString();
+          });
+          
+          python.stderr.on('data', (data) => {
+            stderr += data.toString();
+          });
+          
+          python.on('close', (code) => {
+            if (code !== 0) {
+              reject(new Error(`Encoding failed: ${stderr}`));
+              return;
+            }
+            
+            try {
+              resolve(JSON.parse(stdout));
+            } catch (parseError) {
+              reject(new Error('Failed to parse encoding result'));
+            }
+          });
+          
+          python.on('error', (error) => {
+            reject(error);
+          });
+          
+          python.stdin.write(JSON.stringify({ image_data: imageData }));
+          python.stdin.end();
+        });
+        
+        if (!encodingResult.success) {
+          return res.status(400).json({
+            message: "Failed to generate face encoding: " + encodingResult.error
+          });
         }
-      } catch {
-        // imageData is just the image, not JSON - that's fine for fallback
-        console.log('No face descriptor found in upload, storing image only');
+        
+        // Update employee with face image and encoding
+        const updatedUser = await storage.updateUserFaceEncoding(
+          employeeId, 
+          imageData, 
+          encodingResult.encoding,
+          encodingResult.confidence
+        );
+        
+        const { password: _, ...safeUser } = updatedUser;
+        res.json({
+          message: "Employee face image and encoding updated successfully",
+          user: safeUser,
+          encoding_quality: {
+            hasEncoding: true,
+            confidence: encodingResult.confidence,
+            method: 'face_recognition_dlib',
+            face_location: encodingResult.face_location
+          }
+        });
+        
+      } catch (encodingError) {
+        console.error("Face encoding error:", encodingError);
+        // Fallback to just storing the image
+        const updatedUser = await storage.updateUserFaceImage(employeeId, imageData);
+        const { password: _, ...safeUser } = updatedUser;
+        res.json({
+          message: "Employee face image updated (encoding failed - will use fallback comparison)",
+          user: safeUser,
+          warning: "Face encoding generation failed"
+        });
       }
-
-      // Update employee with face image and descriptor
-      const updatedUser = await storage.updateUserFaceEncoding(
-        employeeId, 
-        actualImageData, 
-        faceDescriptor,
-        descriptorConfidence
-      );
-      
-      const { password: _, ...safeUser } = updatedUser;
-      res.json({
-        message: faceDescriptor 
-          ? "Employee face image and 128D descriptor updated successfully"
-          : "Employee face image updated (descriptor extraction failed - will use fallback)",
-        user: safeUser,
-        encoding_quality: {
-          hasDescriptor: !!faceDescriptor,
-          confidence: descriptorConfidence,
-          method: faceDescriptor ? 'face-api.js' : 'image-only'
-        }
-      });
     } catch (error) {
       console.error("Face image upload error:", error);
       res.status(500).json({ message: "Failed to upload face image" });
@@ -772,13 +852,13 @@ export function registerRoutes(app: Express): Server {
         // Use professional face recognition if encoding is available
         let comparisonResult;
         
-        if (req.user && req.user.faceEncoding && Array.isArray(req.user.faceEncoding) && req.user.faceEncoding.length === 128) {
-          // Use professional 128-dimensional face descriptor comparison
-          console.log(`Using 128D descriptor comparison for ${req.user.email}`);
+        if (req.user && req.user.faceEncoding && Array.isArray(req.user.faceEncoding)) {
+          // Use professional face_recognition library comparison
+          console.log(`Using face_recognition library for ${req.user.email}`);
           comparisonResult = await compareFaceDescriptors(req.user.faceEncoding, capturedImage);
         } else {
-          // Fallback for users without descriptors
-          console.log(`Using legacy comparison for ${req.user.email} - no valid 128D descriptor stored`);
+          // Fallback for users without encodings
+          console.log(`Using legacy comparison for ${req.user.email} - no face encoding stored`);
           comparisonResult = await compareImages(registeredImage, capturedImage);
         }
         
