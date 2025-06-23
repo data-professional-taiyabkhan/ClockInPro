@@ -624,7 +624,7 @@ export function registerRoutes(app: Express): Server {
         }
       }
 
-      // Enhanced face verification using Azure Face API with Sharp fallback
+      // Face verification using computer vision
       console.log(`Starting face verification for ${req.user.email}`);
       
       try {
@@ -640,43 +640,6 @@ export function registerRoutes(app: Express): Server {
           });
         }
 
-        // Try Azure Face API first (most accurate)
-        if (azureFaceService.getAvailability()) {
-          console.log(`Using Azure Face API for verification - ${req.user.email}`);
-          
-          try {
-            const comparison = await azureFaceService.compareFaces(registeredImage, capturedImage);
-
-            console.log(`Azure Face verification result for ${req.user.email}:`, {
-              isMatch: comparison.isMatch,
-              confidence: comparison.confidence.toFixed(1),
-              similarity: comparison.similarity.toFixed(1)
-            });
-            
-            if (comparison.isMatch) {
-              res.json({
-                verified: true,
-                message: `Welcome! Face verification successful (${comparison.similarity.toFixed(1)}% confidence)`,
-                method: 'azure',
-                location: userLocation?.postcode
-              });
-            } else {
-              res.status(400).json({
-                verified: false,
-                message: `Face doesn't match! Please try again. (${comparison.confidence.toFixed(1)}% confidence)`,
-                method: 'azure'
-              });
-            }
-            return;
-          } catch (azureError) {
-            console.log(`Azure Face API error for ${req.user.email}, falling back to Sharp:`, azureError.message);
-          }
-        } else {
-          console.log(`Azure Face API not available for ${req.user.email}, using Sharp fallback`);
-        }
-        // Fallback to Sharp-based detection and comparison with stricter validation
-        console.log(`Using Sharp fallback for face verification - ${req.user.email}`);
-        
         // Validate that captured image contains an actual face
         const capturedFaceResult = await detectFaceInImage(capturedImage);
         if (!capturedFaceResult.hasFace || capturedFaceResult.confidence < 35) {
