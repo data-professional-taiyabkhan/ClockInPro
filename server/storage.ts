@@ -44,6 +44,7 @@ export interface IStorage {
   getActiveLocations(): Promise<Location[]>;
   getLocationByPostcode(postcode: string): Promise<Location | undefined>;
   updateLocation(id: number, updates: Partial<Location>): Promise<Location>;
+  deleteLocation(id: number): Promise<void>;
   
   // Invitation operations
   createInvitation(invitation: InsertInvitation & { token: string }): Promise<EmployeeInvitation>;
@@ -184,6 +185,16 @@ export class DatabaseStorage implements IStorage {
       .where(eq(locations.id, id))
       .returning();
     return location;
+  }
+
+  async deleteLocation(id: number): Promise<void> {
+    // First remove all employee assignments for this location
+    await db.delete(employeeLocations)
+      .where(eq(employeeLocations.locationId, id));
+    
+    // Then delete the location
+    await db.delete(locations)
+      .where(eq(locations.id, id));
   }
 
   // Invitation operations

@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { setupAuth, requireAuth, requireManager, requireAdmin, hashPassword, comparePasswords } from "./auth";
 import { storage } from "./storage";
-import { insertAttendanceRecordSchema, loginSchema, registerSchema, users, employeeInvitations } from "@shared/schema";
+import { insertAttendanceRecordSchema, insertLocationSchema, loginSchema, registerSchema, users, employeeInvitations, locations, employeeLocations } from "@shared/schema";
 import { desc, eq, and } from "drizzle-orm";
 import { db } from "./db";
 import crypto from "crypto";
@@ -802,15 +802,7 @@ export function registerRoutes(app: Express): Server {
   app.delete("/api/locations/:id", requireAdmin, async (req, res) => {
     try {
       const locationId = parseInt(req.params.id);
-      
-      // First remove all employee assignments for this location
-      await db.delete(employeeLocations)
-        .where(eq(employeeLocations.locationId, locationId));
-      
-      // Then delete the location
-      await db.delete(locations)
-        .where(eq(locations.id, locationId));
-        
+      await storage.deleteLocation(locationId);
       res.json({ message: "Location deleted successfully" });
     } catch (error) {
       console.error("Delete location error:", error);
