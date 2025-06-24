@@ -219,6 +219,120 @@ export class DatabaseStorage implements IStorage {
       .where(and(eq(employeeInvitations.used, false)))
       .orderBy(desc(employeeInvitations.createdAt));
   }
+
+  // Employee location operations
+  async assignEmployeeToLocation(assignment: InsertEmployeeLocation): Promise<EmployeeLocation> {
+    const [employeeLocation] = await db
+      .insert(employeeLocations)
+      .values(assignment)
+      .onConflictDoNothing()
+      .returning();
+    return employeeLocation;
+  }
+
+  async removeEmployeeFromLocation(userId: number, locationId: number): Promise<void> {
+    await db
+      .delete(employeeLocations)
+      .where(and(
+        eq(employeeLocations.userId, userId),
+        eq(employeeLocations.locationId, locationId)
+      ));
+  }
+
+  async getEmployeeLocations(userId: number): Promise<Location[]> {
+    const result = await db
+      .select({
+        id: locations.id,
+        name: locations.name,
+        postcode: locations.postcode,
+        address: locations.address,
+        latitude: locations.latitude,
+        longitude: locations.longitude,
+        radiusMeters: locations.radiusMeters,
+        isActive: locations.isActive,
+        createdAt: locations.createdAt,
+      })
+      .from(employeeLocations)
+      .innerJoin(locations, eq(employeeLocations.locationId, locations.id))
+      .where(and(
+        eq(employeeLocations.userId, userId),
+        eq(locations.isActive, true)
+      ));
+    
+    return result;
+  }
+
+  async getUsersAtLocation(locationId: number): Promise<User[]> {
+    const result = await db
+      .select({
+        id: users.id,
+        email: users.email,
+        firstName: users.firstName,
+        lastName: users.lastName,
+        role: users.role,
+        faceImageUrl: users.faceImageUrl,
+        faceEncoding: users.faceEncoding,
+        faceConfidence: users.faceConfidence,
+        isActive: users.isActive,
+        createdAt: users.createdAt,
+      })
+      .from(employeeLocations)
+      .innerJoin(users, eq(employeeLocations.userId, users.id))
+      .where(and(
+        eq(employeeLocations.locationId, locationId),
+        eq(users.isActive, true)
+      ));
+    
+    return result;
+  }
+
+  async getAllEmployeeLocationAssignments(): Promise<(EmployeeLocation & { user: User; location: Location })[]> {
+    const result = await db
+      .select({
+        id: employeeLocations.id,
+        userId: employeeLocations.userId,
+        locationId: employeeLocations.locationId,
+        assignedById: employeeLocations.assignedById,
+        createdAt: employeeLocations.createdAt,
+        user: {
+          id: users.id,
+          email: users.email,
+          firstName: users.firstName,
+          lastName: users.lastName,
+          role: users.role,
+          faceImageUrl: users.faceImageUrl,
+          faceEncoding: users.faceEncoding,
+          faceConfidence: users.faceConfidence,
+          isActive: users.isActive,
+          createdAt: users.createdAt,
+        },
+        location: {
+          id: locations.id,
+          name: locations.name,
+          postcode: locations.postcode,
+          address: locations.address,
+          latitude: locations.latitude,
+          longitude: locations.longitude,
+          radiusMeters: locations.radiusMeters,
+          isActive: locations.isActive,
+          createdAt: locations.createdAt,
+        }
+      })
+      .from(employeeLocations)
+      .innerJoin(users, eq(employeeLocations.userId, users.id))
+      .innerJoin(locations, eq(employeeLocations.locationId, locations.id))
+      .where(and(
+        eq(users.isActive, true),
+        eq(locations.isActive, true)
+      ))
+      .orderBy(users.firstName, users.lastName);
+    
+    return result.map(row => ({
+      ...row,
+      user: row.user,
+      location: row.location
+    }));
+  }
 }
 
 export const storage = new DatabaseStorage();

@@ -23,26 +23,32 @@ export default function ManagerDashboard() {
 
   const { data: user } = useQuery({
     queryKey: ["/api/user"],
+    queryFn: () => apiRequest("/api/user"),
   });
 
   const { data: employees = [], isLoading: employeesLoading, error: employeesError } = useQuery({
     queryKey: ["/api/employees"],
+    queryFn: () => apiRequest("/api/employees"),
   });
 
   const { data: locations = [], isLoading: locationsLoading } = useQuery({
     queryKey: ["/api/locations"],
+    queryFn: () => apiRequest("/api/locations"),
   });
 
   const { data: employeeLocations = [], isLoading: assignmentsLoading } = useQuery({
     queryKey: ["/api/employee-locations"],
+    queryFn: () => apiRequest("/api/employee-locations"),
   });
 
   const { data: attendanceRecords = [] } = useQuery({
     queryKey: ["/api/attendance"],
+    queryFn: () => apiRequest("/api/attendance"),
   });
 
   const { data: invitations = [] } = useQuery({
     queryKey: ["/api/invitations"],
+    queryFn: () => apiRequest("/api/invitations"),
   });
 
   const assignLocationMutation = useMutation({
