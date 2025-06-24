@@ -799,6 +799,25 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  app.delete("/api/locations/:id", requireAdmin, async (req, res) => {
+    try {
+      const locationId = parseInt(req.params.id);
+      
+      // First remove all employee assignments for this location
+      await db.delete(employeeLocations)
+        .where(eq(employeeLocations.locationId, locationId));
+      
+      // Then delete the location
+      await db.delete(locations)
+        .where(eq(locations.id, locationId));
+        
+      res.json({ message: "Location deleted successfully" });
+    } catch (error) {
+      console.error("Delete location error:", error);
+      res.status(500).json({ message: "Failed to delete location" });
+    }
+  });
+
   // Employee location assignments (Manager only)
   app.get("/api/employee-locations", requireManager, async (req, res) => {
     try {

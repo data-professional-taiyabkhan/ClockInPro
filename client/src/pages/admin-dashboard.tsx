@@ -66,6 +66,26 @@ export default function AdminDashboard() {
     },
   });
 
+  const deleteLocationMutation = useMutation({
+    mutationFn: async (id: number) => {
+      return await apiRequest(`/api/locations/${id}`, { method: "DELETE" });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/locations"] });
+      toast({
+        title: "Success",
+        description: "Location deleted successfully",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
@@ -261,6 +281,18 @@ export default function AdminDashboard() {
                             onClick={() => openLocationDialog(location)}
                           >
                             <Edit className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => {
+                              if (window.confirm(`Are you sure you want to delete "${location.name}"? This will remove all employee assignments to this location.`)) {
+                                deleteLocationMutation.mutate(location.id);
+                              }
+                            }}
+                            disabled={deleteLocationMutation.isPending}
+                          >
+                            <Trash2 className="w-4 h-4" />
                           </Button>
                         </div>
                       </TableCell>
