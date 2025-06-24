@@ -107,6 +107,11 @@ export default function AdminDashboard() {
   };
 
   const openLocationDialog = (location?: Location) => {
+    if (location) {
+      console.log("Opening edit dialog for location:", location);
+    } else {
+      console.log("Opening create dialog");
+    }
     setEditingLocation(location || null);
     setIsLocationDialogOpen(true);
   };
@@ -134,7 +139,7 @@ export default function AdminDashboard() {
               </div>
               <Dialog open={isLocationDialogOpen} onOpenChange={setIsLocationDialogOpen}>
                 <DialogTrigger asChild>
-                  <Button onClick={() => openLocationDialog()} size="lg">
+                  <Button onClick={() => openLocationDialog()} size="lg" className="bg-blue-600 hover:bg-blue-700">
                     <Plus className="w-4 h-4 mr-2" />
                     Add New Location
                   </Button>
@@ -273,13 +278,14 @@ export default function AdminDashboard() {
                           {location.isActive ? "Active" : "Inactive"}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end space-x-2">
+                      <TableCell>
+                        <div className="flex space-x-2">
                           <Button
                             variant="outline"
                             size="sm"
                             onClick={() => openLocationDialog(location)}
-                            className="flex items-center gap-2"
+                            className="flex items-center gap-1"
+                            title="Edit location"
                           >
                             <Edit className="w-4 h-4" />
                             Edit
@@ -293,7 +299,8 @@ export default function AdminDashboard() {
                               }
                             }}
                             disabled={deleteLocationMutation.isPending}
-                            className="flex items-center gap-2"
+                            className="flex items-center gap-1"
+                            title="Delete location"
                           >
                             <Trash2 className="w-4 h-4" />
                             Delete
