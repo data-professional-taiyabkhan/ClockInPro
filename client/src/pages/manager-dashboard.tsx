@@ -55,7 +55,7 @@ export default function ManagerDashboard() {
     mutationFn: async ({ userId, locationId }: { userId: number; locationId: number }) => {
       return await apiRequest("/api/employee-locations", {
         method: "POST",
-        body: { userId, locationId },
+        body: JSON.stringify({ userId, locationId }),
       });
     },
     onSuccess: () => {

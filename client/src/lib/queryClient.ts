@@ -11,17 +11,28 @@ export async function apiRequest(
   url: string,
   options?: {
     method?: string;
-    body?: any;
+    body?: string | any;
     headers?: Record<string, string>;
   }
 ): Promise<any> {
+  const requestBody = options?.body;
+  let finalBody: string | undefined;
+
+  if (requestBody) {
+    if (typeof requestBody === 'string') {
+      finalBody = requestBody;
+    } else {
+      finalBody = JSON.stringify(requestBody);
+    }
+  }
+
   const res = await fetch(url, {
     method: options?.method || "GET",
     headers: {
       "Content-Type": "application/json",
       ...options?.headers,
     },
-    body: options?.body ? JSON.stringify(options.body) : undefined,
+    body: finalBody,
     credentials: "include",
   });
 

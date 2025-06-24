@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { loginSchema, type LoginData } from "@shared/schema";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { login } from "@/lib/api";
 import { useLocation } from "wouter";
 
 export default function LoginPage() {
@@ -26,10 +26,7 @@ export default function LoginPage() {
 
   const loginMutation = useMutation({
     mutationFn: async (data: LoginData) => {
-      return await apiRequest("/api/login", {
-        method: "POST",
-        body: JSON.stringify(data),
-      });
+      return await login(data.email, data.password);
     },
     onSuccess: (user) => {
       queryClient.setQueryData(["/api/user"], user);
