@@ -3,6 +3,7 @@ import {
   attendanceRecords,
   locations,
   employeeInvitations,
+  employeeLocations,
   type User,
   type InsertUser,
   type AttendanceRecord,
@@ -11,6 +12,8 @@ import {
   type InsertLocation,
   type EmployeeInvitation,
   type InsertInvitation,
+  type EmployeeLocation,
+  type InsertEmployeeLocation,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and } from "drizzle-orm";
@@ -47,6 +50,13 @@ export interface IStorage {
   getInvitationByToken(token: string): Promise<EmployeeInvitation | undefined>;
   markInvitationUsed(id: number): Promise<EmployeeInvitation>;
   getActiveInvitations(): Promise<EmployeeInvitation[]>;
+  
+  // Employee location operations
+  assignEmployeeToLocation(assignment: InsertEmployeeLocation): Promise<EmployeeLocation>;
+  removeEmployeeFromLocation(userId: number, locationId: number): Promise<void>;
+  getEmployeeLocations(userId: number): Promise<Location[]>;
+  getUsersAtLocation(locationId: number): Promise<User[]>;
+  getAllEmployeeLocationAssignments(): Promise<(EmployeeLocation & { user: User; location: Location })[]>;
   
   sessionStore: any;
 }

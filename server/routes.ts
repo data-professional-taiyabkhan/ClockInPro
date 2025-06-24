@@ -765,13 +765,92 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  app.get("/api/locations", requireManager, async (req, res) => {
+  // Location management (Admin only)
+  app.get("/api/locations", requireAuth, async (req, res) => {
     try {
       const locations = await storage.getActiveLocations();
       res.json(locations);
     } catch (error) {
       console.error("Get locations error:", error);
       res.status(500).json({ message: "Failed to get locations" });
+    }
+  });
+
+  app.post("/api/locations", requireAdmin, async (req, res) => {
+    try {
+      const validatedData = insertLocationSchema.parse(req.body);
+      const location = await storage.createLocation(validatedData);
+      res.json(location);
+    } catch (error) {
+      console.error("Create location error:", error);
+      res.status(500).json({ message: "Failed to create location" });
+    }
+  });
+
+  app.put("/api/locations/:id", requireAdmin, async (req, res) => {
+    try {
+      const locationId = parseInt(req.params.id);
+      const updates = req.body;
+      const location = await storage.updateLocation(locationId, updates);
+      res.json(location);
+    } catch (error) {
+      console.error("Update location error:", error);
+      res.status(500).json({ message: "Failed to update location" });
+    }
+  });
+
+  // Employee location assignments (Manager only)
+  app.get("/api/employee-locations", requireManager, async (req, res) => {
+    try {
+      const assignments = await storage.getAllEmployeeLocationAssignments();
+      res.json(assignments);
+    } catch (error) {
+      console.error("Get employee locations error:", error);
+      res.status(500).json({ message: "Failed to get employee location assignments" });
+    }
+  });
+
+  app.post("/api/employee-locations", requireManager, async (req, res) => {
+    try {
+      const { userId, locationId } = req.body;
+      
+      if (!userId || !locationId) {
+        return res.status(400).json({ message: "User ID and Location ID are required" });
+      }
+
+      const assignment = await storage.assignEmployeeToLocation({
+        userId,
+        locationId,
+        assignedById: req.user!.id
+      });
+
+      res.json(assignment);
+    } catch (error) {
+      console.error("Assign employee location error:", error);
+      res.status(500).json({ message: "Failed to assign employee to location" });
+    }
+  });
+
+  app.delete("/api/employee-locations/:userId/:locationId", requireManager, async (req, res) => {
+    try {
+      const userId = parseInt(req.params.userId);
+      const locationId = parseInt(req.params.locationId);
+      
+      await storage.removeEmployeeFromLocation(userId, locationId);
+      res.json({ message: "Employee removed from location" });
+    } catch (error) {
+      console.error("Remove employee location error:", error);
+      res.status(500).json({ message: "Failed to remove employee from location" });
+    }
+  });
+
+  app.get("/api/my-locations", requireAuth, async (req, res) => {
+    try {
+      const locations = await storage.getEmployeeLocations(req.user!.id);
+      res.json(locations);
+    } catch (error) {
+      console.error("Get my locations error:", error);
+      res.status(500).json({ message: "Failed to get assigned locations" });
     }
   });
 
@@ -784,12 +863,19 @@ export function registerRoutes(app: Express): Server {
         return res.status(400).json({ message: "No face image registered. Please register your face first." });
       }
 
-      // Location verification
+      // Location verification - check if user is assigned to this location
       if (userLocation && userLocation.postcode) {
-        const allowedLocation = await storage.getLocationByPostcode(userLocation.postcode.toUpperCase());
+        // Get all locations assigned to this employee
+        const assignedLocations = await storage.getEmployeeLocations(req.user!.id);
+        
+        // Check if the user's current postcode matches any assigned location
+        const allowedLocation = assignedLocations.find(
+          loc => loc.postcode.toUpperCase() === userLocation.postcode.toUpperCase()
+        );
+        
         if (!allowedLocation) {
           return res.status(403).json({ 
-            message: "Check-in not allowed from this location. Please contact your manager." 
+            message: "You are not allowed to work from this location. Please contact your manager to assign you to this work location." 
           });
         }
 
@@ -805,9 +891,17 @@ export function registerRoutes(app: Express): Server {
 
           if (distance > allowedLocation.radiusMeters) {
             return res.status(403).json({ 
-              message: `You are ${Math.round(distance)}m away. Please move closer to the work location.` 
+              message: `You are ${Math.round(distance)}m away from ${allowedLocation.name}. Please move closer to the work location.` 
             });
           }
+        }
+      } else {
+        // If no location provided, check if user has any assigned locations
+        const assignedLocations = await storage.getEmployeeLocations(req.user!.id);
+        if (assignedLocations.length > 0) {
+          return res.status(400).json({
+            message: "Location verification required. Please enable location services and try again."
+          });
         }
       }
 

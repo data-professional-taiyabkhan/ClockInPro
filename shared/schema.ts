@@ -71,6 +71,7 @@ export const usersRelations = relations(users, ({ many }) => ({
 
 export const locationsRelations = relations(locations, ({ many }) => ({
   attendanceRecords: many(attendanceRecords),
+  employeeAssignments: many(employeeLocations),
 }));
 
 export const attendanceRecordsRelations = relations(attendanceRecords, ({ one }) => ({
@@ -140,5 +141,7 @@ export type Location = typeof locations.$inferSelect;
 export type InsertLocation = z.infer<typeof insertLocationSchema>;
 export type EmployeeInvitation = typeof employeeInvitations.$inferSelect;
 export type InsertInvitation = z.infer<typeof insertInvitationSchema>;
+export type EmployeeLocation = typeof employeeLocations.$inferSelect;
+export type InsertEmployeeLocation = z.infer<typeof insertEmployeeLocationSchema>;
 export type LoginData = z.infer<typeof loginSchema>;
 export type RegisterData = z.infer<typeof registerSchema>;
