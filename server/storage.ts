@@ -26,7 +26,6 @@ export interface IStorage {
   createUser(user: InsertUser): Promise<User>;
   updateUserFaceImage(userId: number, faceImageUrl: string): Promise<User>;
   updateUserFaceEncoding(userId: number, faceImageUrl: string, faceEncoding: any, confidence: number): Promise<User>;
-  updateUserAssignedLocations(userId: number, locationIds: number[]): Promise<User>;
   getAllEmployees(): Promise<User[]>;
   deleteUser(id: number): Promise<void>;
   
@@ -87,32 +86,6 @@ export class DatabaseStorage implements IStorage {
       .where(eq(users.id, userId))
       .returning();
     return user;
-  }
-
-  async updateUserFaceEncoding(userId: number, faceImageUrl: string, faceEncoding: any, confidence: number): Promise<User> {
-    const [updatedUser] = await db
-      .update(users)
-      .set({
-        faceImageUrl,
-        faceEncoding: JSON.stringify(faceEncoding),
-        faceConfidence: confidence.toString(),
-        updatedAt: new Date(),
-      })
-      .where(eq(users.id, userId))
-      .returning();
-    return updatedUser;
-  }
-
-  async updateUserAssignedLocations(userId: number, locationIds: number[]): Promise<User> {
-    const [updatedUser] = await db
-      .update(users)
-      .set({
-        assignedLocations: JSON.stringify(locationIds),
-        updatedAt: new Date(),
-      })
-      .where(eq(users.id, userId))
-      .returning();
-    return updatedUser;
   }
 
   async getAllEmployees(): Promise<User[]> {

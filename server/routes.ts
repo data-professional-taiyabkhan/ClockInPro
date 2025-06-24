@@ -765,69 +765,13 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  app.get("/api/locations", requireAuth, async (req, res) => {
+  app.get("/api/locations", requireManager, async (req, res) => {
     try {
       const locations = await storage.getActiveLocations();
       res.json(locations);
     } catch (error) {
       console.error("Get locations error:", error);
       res.status(500).json({ message: "Failed to get locations" });
-    }
-  });
-
-  // Admin-only location management
-  app.post("/api/locations", requireAdmin, async (req, res) => {
-    try {
-      const { name, postcode, address, latitude, longitude, radiusMeters } = req.body;
-      
-      const location = await storage.createLocation({
-        name,
-        postcode: postcode.toUpperCase(),
-        address,
-        latitude: latitude ? parseFloat(latitude) : null,
-        longitude: longitude ? parseFloat(longitude) : null,
-        radiusMeters: radiusMeters ? parseInt(radiusMeters) : 100,
-        isActive: true
-      });
-      
-      res.json(location);
-    } catch (error) {
-      console.error("Create location error:", error);
-      res.status(500).json({ message: "Failed to create location" });
-    }
-  });
-
-  app.delete("/api/locations/:id", requireAdmin, async (req, res) => {
-    try {
-      const locationId = parseInt(req.params.id);
-      await storage.updateLocation(locationId, { isActive: false });
-      res.json({ message: "Location deactivated" });
-    } catch (error) {
-      console.error("Delete location error:", error);
-      res.status(500).json({ message: "Failed to delete location" });
-    }
-  });
-
-  // Manager can assign locations to employees
-  app.put("/api/employees/:id/locations", requireManager, async (req, res) => {
-    try {
-      const employeeId = parseInt(req.params.id);
-      const { locationIds } = req.body;
-
-      if (!Array.isArray(locationIds)) {
-        return res.status(400).json({ message: "locationIds must be an array" });
-      }
-
-      const updatedUser = await storage.updateUserAssignedLocations(employeeId, locationIds);
-      const { password: _, ...safeUser } = updatedUser;
-      
-      res.json({
-        message: "Employee locations updated successfully",
-        user: safeUser
-      });
-    } catch (error) {
-      console.error("Update employee locations error:", error);
-      res.status(500).json({ message: "Failed to update employee locations" });
     }
   });
 
@@ -840,53 +784,30 @@ export function registerRoutes(app: Express): Server {
         return res.status(400).json({ message: "No face image registered. Please register your face first." });
       }
 
-      // Enhanced location verification with assigned locations
+      // Location verification
       if (userLocation && userLocation.postcode) {
-        const requestedLocation = await storage.getLocationByPostcode(userLocation.postcode.toUpperCase());
-        
-        if (!requestedLocation) {
+        const allowedLocation = await storage.getLocationByPostcode(userLocation.postcode.toUpperCase());
+        if (!allowedLocation) {
           return res.status(403).json({ 
-            message: "Unknown location. Please contact your manager to add this location." 
-          });
-        }
-
-        // Check if user is assigned to this location
-        const userAssignedLocations = req.user?.assignedLocations ? 
-          (typeof req.user.assignedLocations === 'string' ? 
-            JSON.parse(req.user.assignedLocations) : 
-            req.user.assignedLocations) : [];
-        if (!userAssignedLocations.includes(requestedLocation.id)) {
-          return res.status(403).json({ 
-            message: "You are not allowed to work at this location. Please contact your manager." 
+            message: "Check-in not allowed from this location. Please contact your manager." 
           });
         }
 
         // Distance verification if coordinates provided
         if (userLocation.latitude && userLocation.longitude && 
-            requestedLocation.latitude && requestedLocation.longitude) {
+            allowedLocation.latitude && allowedLocation.longitude) {
           const distance = calculateDistance(
             parseFloat(userLocation.latitude),
             parseFloat(userLocation.longitude),
-            parseFloat(requestedLocation.latitude),
-            parseFloat(requestedLocation.longitude)
+            parseFloat(allowedLocation.latitude),
+            parseFloat(allowedLocation.longitude)
           );
 
-          if (distance > requestedLocation.radiusMeters) {
+          if (distance > allowedLocation.radiusMeters) {
             return res.status(403).json({ 
-              message: `You are ${Math.round(distance)}m away from ${requestedLocation.name}. Please move closer to the work location.` 
+              message: `You are ${Math.round(distance)}m away. Please move closer to the work location.` 
             });
           }
-        }
-      } else {
-        // If no location provided, check if user has any assigned locations
-        const userAssignedLocations = req.user?.assignedLocations ? 
-          (typeof req.user.assignedLocations === 'string' ? 
-            JSON.parse(req.user.assignedLocations) : 
-            req.user.assignedLocations) : [];
-        if (userAssignedLocations.length > 0) {
-          return res.status(403).json({ 
-            message: "Location verification required. Please enable location services and try again." 
-          });
         }
       }
 
