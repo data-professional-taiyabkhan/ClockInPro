@@ -556,9 +556,14 @@ export function registerRoutes(app: Express): Server {
   // Authentication routes
   app.post("/api/login", async (req, res) => {
     try {
+      console.log("Login request received:", req.body);
+      
       const { email, password } = loginSchema.parse(req.body);
+      console.log("Parsed credentials:", { email, password: password ? "***" : "missing" });
       
       const user = await storage.getUserByEmail(email);
+      console.log("User found:", user ? `${user.email} (active: ${user.isActive})` : "none");
+      
       if (!user) {
         return res.status(401).json({ message: "Invalid email or password" });
       }
@@ -568,12 +573,15 @@ export function registerRoutes(app: Express): Server {
       }
 
       const isPasswordValid = await comparePasswords(password, user.password);
+      console.log("Password validation result:", isPasswordValid);
+      
       if (!isPasswordValid) {
         return res.status(401).json({ message: "Invalid email or password" });
       }
 
       // Set session
       (req.session as any).userId = user.id;
+      console.log("Session set for user:", user.id);
 
       // Return user without password
       const { password: _, ...safeUser } = user;
