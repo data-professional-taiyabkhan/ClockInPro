@@ -20,6 +20,9 @@ export const users = pgTable("users", {
   password: varchar("password").notNull(),
   role: varchar("role").notNull().default("employee"), // employee, manager, admin
   faceImageUrl: varchar("face_image_url"), // Simple face image for recognition
+  faceEncoding: text("face_encoding"), // JSON string for face encoding
+  faceConfidence: varchar("face_confidence"),
+  assignedLocations: text("assigned_locations").default("[]"), // JSON array of location IDs
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -30,6 +33,7 @@ export const locations = pgTable("locations", {
   id: serial("id").primaryKey(),
   name: varchar("name").notNull(),
   postcode: varchar("postcode").notNull(),
+  address: varchar("address"),
   latitude: varchar("latitude"),
   longitude: varchar("longitude"),
   radiusMeters: integer("radius_meters").default(100), // Check-in radius
