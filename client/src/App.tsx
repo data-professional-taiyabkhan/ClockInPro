@@ -32,7 +32,15 @@ function Router() {
         </>
       ) : (
         <>
-          <Route path="/" component={user.role === "employee" ? EmployeeDashboard : ManagerDashboard} />
+          <Route path="/" component={
+            user.role === "admin" ? () => <div>Admin Dashboard - <a href="/admin" className="text-blue-600 underline">Go to Admin Panel</a></div> :
+            user.role === "manager" ? ManagerDashboard : 
+            EmployeeDashboard
+          } />
+          <Route path="/admin" component={() => user.role === "admin" ? (() => {
+            const AdminDashboard = require("@/pages/admin-dashboard").default;
+            return <AdminDashboard />;
+          })() : <div>Access Denied</div>} />
         </>
       )}
       <Route component={NotFound} />

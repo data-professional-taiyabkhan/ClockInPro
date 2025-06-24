@@ -851,7 +851,10 @@ export function registerRoutes(app: Express): Server {
         }
 
         // Check if user is assigned to this location
-        const userAssignedLocations = req.user?.assignedLocations || [];
+        const userAssignedLocations = req.user?.assignedLocations ? 
+          (typeof req.user.assignedLocations === 'string' ? 
+            JSON.parse(req.user.assignedLocations) : 
+            req.user.assignedLocations) : [];
         if (!userAssignedLocations.includes(requestedLocation.id)) {
           return res.status(403).json({ 
             message: "You are not allowed to work at this location. Please contact your manager." 
@@ -876,7 +879,10 @@ export function registerRoutes(app: Express): Server {
         }
       } else {
         // If no location provided, check if user has any assigned locations
-        const userAssignedLocations = req.user?.assignedLocations || [];
+        const userAssignedLocations = req.user?.assignedLocations ? 
+          (typeof req.user.assignedLocations === 'string' ? 
+            JSON.parse(req.user.assignedLocations) : 
+            req.user.assignedLocations) : [];
         if (userAssignedLocations.length > 0) {
           return res.status(403).json({ 
             message: "Location verification required. Please enable location services and try again." 
