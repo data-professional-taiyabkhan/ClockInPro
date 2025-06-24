@@ -30,6 +30,7 @@ export const locations = pgTable("locations", {
   id: serial("id").primaryKey(),
   name: varchar("name").notNull(),
   postcode: varchar("postcode").notNull(),
+  address: text("address"),
   latitude: varchar("latitude"),
   longitude: varchar("longitude"),
   radiusMeters: integer("radius_meters").default(100), // Check-in radius
@@ -62,11 +63,22 @@ export const employeeInvitations = pgTable("employee_invitations", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// Junction table for employee location assignments
+export const employeeLocations = pgTable("employee_locations", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id),
+  locationId: integer("location_id").notNull().references(() => locations.id),
+  assignedById: integer("assigned_by_id").notNull().references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 export const usersRelations = relations(users, ({ many }) => ({
   attendanceRecords: many(attendanceRecords),
   approvedRecords: many(attendanceRecords, {
     relationName: "approvedBy"
   }),
+  employeeLocations: many(employeeLocations),
+  assignedLocations: many(employeeLocations, { relationName: "assignedBy" }),
 }));
 
 export const locationsRelations = relations(locations, ({ many }) => ({
@@ -97,6 +109,22 @@ export const employeeInvitationsRelations = relations(employeeInvitations, ({ on
   }),
 }));
 
+export const employeeLocationsRelations = relations(employeeLocations, ({ one }) => ({
+  user: one(users, {
+    fields: [employeeLocations.userId],
+    references: [users.id],
+  }),
+  location: one(locations, {
+    fields: [employeeLocations.locationId],
+    references: [locations.id],
+  }),
+  assignedBy: one(users, {
+    fields: [employeeLocations.assignedById],
+    references: [users.id],
+    relationName: "assignedBy",
+  }),
+}));
+
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
   createdAt: true,
@@ -118,6 +146,11 @@ export const insertInvitationSchema = createInsertSchema(employeeInvitations).om
   id: true,
   createdAt: true,
   token: true,
+});
+
+export const insertEmployeeLocationSchema = createInsertSchema(employeeLocations).omit({
+  id: true,
+  createdAt: true,
 });
 
 // Login schemas
