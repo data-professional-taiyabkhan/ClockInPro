@@ -25,15 +25,15 @@ export default function ManagerDashboard() {
     queryKey: ["/api/user"],
   });
 
-  const { data: employees = [], isLoading: employeesLoading } = useQuery({
+  const { data: employees = [], isLoading: employeesLoading, error: employeesError } = useQuery({
     queryKey: ["/api/employees"],
   });
 
-  const { data: locations = [] } = useQuery({
+  const { data: locations = [], isLoading: locationsLoading } = useQuery({
     queryKey: ["/api/locations"],
   });
 
-  const { data: employeeLocations = [] } = useQuery({
+  const { data: employeeLocations = [], isLoading: assignmentsLoading } = useQuery({
     queryKey: ["/api/employee-locations"],
   });
 
@@ -112,6 +112,17 @@ export default function ManagerDashboard() {
             <p className="text-gray-600 dark:text-gray-300 mt-2">
               Welcome back, {user?.firstName} {user?.lastName}
             </p>
+            <div className="flex gap-4 mt-2">
+              <span className="text-sm bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                {employees.length} Total Employees
+              </span>
+              <span className="text-sm bg-green-100 text-green-800 px-2 py-1 rounded">
+                {locations.length} Office Locations
+              </span>
+              <span className="text-sm bg-purple-100 text-purple-800 px-2 py-1 rounded">
+                {employeeLocations.length} Location Assignments
+              </span>
+            </div>
           </div>
           <Button variant="outline" onClick={() => logoutMutation.mutate()}>
             <LogOut className="w-4 h-4 mr-2" />
@@ -157,11 +168,15 @@ export default function ManagerDashboard() {
                             <SelectValue placeholder="Choose an employee..." />
                           </SelectTrigger>
                           <SelectContent>
-                            {employees.filter((emp: User) => emp.role === 'employee').map((employee: User) => (
-                              <SelectItem key={employee.id} value={employee.id.toString()}>
-                                {employee.firstName} {employee.lastName} ({employee.email})
-                              </SelectItem>
-                            ))}
+                            {employees.filter((emp: User) => emp.role === 'employee').length === 0 ? (
+                              <SelectItem value="no-employees" disabled>No employees available</SelectItem>
+                            ) : (
+                              employees.filter((emp: User) => emp.role === 'employee').map((employee: User) => (
+                                <SelectItem key={employee.id} value={employee.id.toString()}>
+                                  {employee.firstName} {employee.lastName} ({employee.email})
+                                </SelectItem>
+                              ))
+                            )}
                           </SelectContent>
                         </Select>
                       </div>
@@ -176,11 +191,15 @@ export default function ManagerDashboard() {
                             <SelectValue placeholder="Choose a location..." />
                           </SelectTrigger>
                           <SelectContent>
-                            {locations.map((location: Location) => (
-                              <SelectItem key={location.id} value={location.id.toString()}>
-                                {location.name} ({location.postcode})
-                              </SelectItem>
-                            ))}
+                            {locations.length === 0 ? (
+                              <SelectItem value="no-locations" disabled>No locations available</SelectItem>
+                            ) : (
+                              locations.map((location: Location) => (
+                                <SelectItem key={location.id} value={location.id.toString()}>
+                                  {location.name} ({location.postcode})
+                                </SelectItem>
+                              ))
+                            )}
                           </SelectContent>
                         </Select>
                       </div>
@@ -208,7 +227,9 @@ export default function ManagerDashboard() {
                   {/* Current Assignments */}
                   <div>
                     <h3 className="font-medium mb-4 text-lg">Current Location Assignments</h3>
-                    {employeeLocations.length === 0 ? (
+                    {assignmentsLoading ? (
+                      <div className="text-center py-8 text-gray-500">Loading assignments...</div>
+                    ) : employeeLocations.length === 0 ? (
                       <div className="text-center py-8 text-gray-500">
                         No location assignments yet. Use the form above to assign employees to locations.
                       </div>
@@ -278,39 +299,101 @@ export default function ManagerDashboard() {
               <CardContent>
                 {employeesLoading ? (
                   <div className="text-center py-8">Loading employees...</div>
+                ) : employeesError ? (
+                  <div className="text-center py-8 text-red-500">
+                    Error loading employees: {employeesError.message}
+                  </div>
+                ) : employees.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">
+                    No employees found. Contact admin to add employees.
+                  </div>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {employees.map((employee: User) => (
-                      <div key={employee.id} className="border rounded-lg p-4">
-                        <div className="flex justify-between items-start mb-2">
-                          <div>
-                            <h3 className="font-medium">{employee.firstName} {employee.lastName}</h3>
-                            <p className="text-sm text-gray-600">{employee.email}</p>
+                  <div>
+                    <div className="mb-4 text-sm text-gray-600">
+                      Total employees: {employees.length} | 
+                      Active: {employees.filter((emp: User) => emp.isActive).length} | 
+                      With face registration: {employees.filter((emp: User) => emp.faceImageUrl).length}
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {employees.map((employee: User) => {
+                        // Get assigned locations for this employee
+                        const assignedLocationIds = employeeLocations
+                          .filter((assignment: any) => assignment.userId === employee.id)
+                          .map((assignment: any) => assignment.locationId);
+                        
+                        const assignedLocations = locations.filter((location: Location) => 
+                          assignedLocationIds.includes(location.id)
+                        );
+
+                        return (
+                          <div key={employee.id} className="border rounded-lg p-4 hover:shadow-md transition-shadow">
+                            <div className="flex justify-between items-start mb-3">
+                              <div>
+                                <h3 className="font-medium text-lg">{employee.firstName} {employee.lastName}</h3>
+                                <p className="text-sm text-gray-600">{employee.email}</p>
+                                <p className="text-xs text-gray-500">ID: {employee.id}</p>
+                              </div>
+                              <Badge variant={employee.role === 'manager' ? 'secondary' : 'default'}>
+                                {employee.role}
+                              </Badge>
+                            </div>
+                            
+                            <div className="space-y-2 mb-3">
+                              <div className="flex items-center gap-2">
+                                <div className={`w-2 h-2 rounded-full ${
+                                  employee.faceImageUrl ? 'bg-green-500' : 'bg-yellow-500'
+                                }`} />
+                                <span className="text-xs">
+                                  {employee.faceImageUrl ? 'Face registered' : 'No face image'}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <div className={`w-2 h-2 rounded-full ${
+                                  employee.isActive ? 'bg-green-500' : 'bg-red-500'
+                                }`} />
+                                <span className="text-xs">
+                                  {employee.isActive ? 'Active' : 'Inactive'}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <div className={`w-2 h-2 rounded-full ${
+                                  assignedLocations.length > 0 ? 'bg-blue-500' : 'bg-gray-400'
+                                }`} />
+                                <span className="text-xs">
+                                  {assignedLocations.length} location(s) assigned
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Show assigned locations */}
+                            {assignedLocations.length > 0 && (
+                              <div className="mt-3 pt-3 border-t">
+                                <p className="text-xs font-medium text-gray-700 mb-1">Assigned Locations:</p>
+                                <div className="space-y-1">
+                                  {assignedLocations.map((location: Location) => (
+                                    <div key={location.id} className="text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded">
+                                      {location.name} ({location.postcode})
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Show face image if available */}
+                            {employee.faceImageUrl && (
+                              <div className="mt-3 pt-3 border-t">
+                                <img 
+                                  src={employee.faceImageUrl} 
+                                  alt="Employee face"
+                                  className="w-16 h-16 rounded-full object-cover border"
+                                />
+                              </div>
+                            )}
                           </div>
-                          <Badge variant={employee.role === 'manager' ? 'secondary' : 'default'}>
-                            {employee.role}
-                          </Badge>
-                        </div>
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-2">
-                            <div className={`w-2 h-2 rounded-full ${
-                              employee.faceImageUrl ? 'bg-green-500' : 'bg-yellow-500'
-                            }`} />
-                            <span className="text-xs">
-                              {employee.faceImageUrl ? 'Face registered' : 'No face image'}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <div className={`w-2 h-2 rounded-full ${
-                              employee.isActive ? 'bg-green-500' : 'bg-red-500'
-                            }`} />
-                            <span className="text-xs">
-                              {employee.isActive ? 'Active' : 'Inactive'}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
               </CardContent>
@@ -330,32 +413,52 @@ export default function ManagerDashboard() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Postcode</TableHead>
-                      <TableHead>Address</TableHead>
-                      <TableHead>Radius</TableHead>
-                      <TableHead>Status</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {locations.map((location: Location) => (
-                      <TableRow key={location.id}>
-                        <TableCell className="font-medium">{location.name}</TableCell>
-                        <TableCell>{location.postcode}</TableCell>
-                        <TableCell>{location.address}</TableCell>
-                        <TableCell>{location.radiusMeters}m</TableCell>
-                        <TableCell>
-                          <Badge variant={location.isActive ? "default" : "secondary"}>
-                            {location.isActive ? "Active" : "Inactive"}
-                          </Badge>
-                        </TableCell>
+                {locationsLoading ? (
+                  <div className="text-center py-8">Loading locations...</div>
+                ) : locations.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">
+                    No locations available. Contact admin to add office locations.
+                  </div>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Name</TableHead>
+                        <TableHead>Postcode</TableHead>
+                        <TableHead>Address</TableHead>
+                        <TableHead>Radius</TableHead>
+                        <TableHead>Assigned Employees</TableHead>
+                        <TableHead>Status</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {locations.map((location: Location) => {
+                        const assignedEmployeeCount = employeeLocations.filter(
+                          (assignment: any) => assignment.locationId === location.id
+                        ).length;
+                        
+                        return (
+                          <TableRow key={location.id}>
+                            <TableCell className="font-medium">{location.name}</TableCell>
+                            <TableCell>{location.postcode}</TableCell>
+                            <TableCell className="max-w-xs truncate">{location.address}</TableCell>
+                            <TableCell>{location.radiusMeters}m</TableCell>
+                            <TableCell>
+                              <Badge variant="outline">
+                                {assignedEmployeeCount} employee(s)
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant={location.isActive ? "default" : "secondary"}>
+                                {location.isActive ? "Active" : "Inactive"}
+                              </Badge>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
