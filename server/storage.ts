@@ -26,6 +26,7 @@ export interface IStorage {
   createUser(user: InsertUser): Promise<User>;
   updateUserFaceImage(userId: number, faceImageUrl: string): Promise<User>;
   updateUserFaceEncoding(userId: number, faceImageUrl: string, faceEncoding: any, confidence: number): Promise<User>;
+  updateUserAssignedLocations(userId: number, locationIds: number[]): Promise<User>;
   getAllEmployees(): Promise<User[]>;
   deleteUser(id: number): Promise<void>;
   
