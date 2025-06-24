@@ -134,9 +134,9 @@ export default function AdminDashboard() {
               </div>
               <Dialog open={isLocationDialogOpen} onOpenChange={setIsLocationDialogOpen}>
                 <DialogTrigger asChild>
-                  <Button onClick={() => openLocationDialog()}>
+                  <Button onClick={() => openLocationDialog()} size="lg">
                     <Plus className="w-4 h-4 mr-2" />
-                    Add Location
+                    Add New Location
                   </Button>
                 </DialogTrigger>
                 <DialogContent className="sm:max-w-[425px]">
@@ -273,14 +273,16 @@ export default function AdminDashboard() {
                           {location.isActive ? "Active" : "Inactive"}
                         </Badge>
                       </TableCell>
-                      <TableCell>
-                        <div className="flex space-x-2">
+                      <TableCell className="text-right">
+                        <div className="flex justify-end space-x-2">
                           <Button
                             variant="outline"
                             size="sm"
                             onClick={() => openLocationDialog(location)}
+                            className="flex items-center gap-2"
                           >
                             <Edit className="w-4 h-4" />
+                            Edit
                           </Button>
                           <Button
                             variant="destructive"
@@ -291,8 +293,10 @@ export default function AdminDashboard() {
                               }
                             }}
                             disabled={deleteLocationMutation.isPending}
+                            className="flex items-center gap-2"
                           >
                             <Trash2 className="w-4 h-4" />
+                            Delete
                           </Button>
                         </div>
                       </TableCell>
