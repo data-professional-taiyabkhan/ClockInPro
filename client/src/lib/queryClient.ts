@@ -11,7 +11,7 @@ export async function apiRequest(
   url: string,
   options?: {
     method?: string;
-    body?: string;
+    body?: any;
     headers?: Record<string, string>;
   }
 ): Promise<any> {
@@ -21,7 +21,7 @@ export async function apiRequest(
       "Content-Type": "application/json",
       ...options?.headers,
     },
-    body: options?.body,
+    body: options?.body ? JSON.stringify(options.body) : undefined,
     credentials: "include",
   });
 

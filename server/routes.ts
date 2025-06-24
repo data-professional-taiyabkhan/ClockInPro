@@ -823,22 +823,38 @@ export function registerRoutes(app: Express): Server {
 
   app.post("/api/employee-locations", requireManager, async (req, res) => {
     try {
-      const { userId, locationId } = req.body;
+      console.log("Raw request body:", req.body);
+      console.log("Body type:", typeof req.body);
+      
+      // Ensure we have valid data
+      let userId, locationId;
+      
+      if (typeof req.body === 'string') {
+        const parsed = JSON.parse(req.body);
+        userId = parsed.userId;
+        locationId = parsed.locationId;
+      } else {
+        userId = req.body.userId;
+        locationId = req.body.locationId;
+      }
+      
+      console.log("Parsed userId:", userId, "locationId:", locationId);
       
       if (!userId || !locationId) {
         return res.status(400).json({ message: "User ID and Location ID are required" });
       }
 
       const assignment = await storage.assignEmployeeToLocation({
-        userId,
-        locationId,
+        userId: parseInt(userId.toString()),
+        locationId: parseInt(locationId.toString()),
         assignedById: req.user!.id
       });
 
+      console.log("Assignment created:", assignment);
       res.json(assignment);
     } catch (error) {
       console.error("Assign employee location error:", error);
-      res.status(500).json({ message: "Failed to assign employee to location" });
+      res.status(500).json({ message: "Failed to assign employee to location", error: error.message });
     }
   });
 
