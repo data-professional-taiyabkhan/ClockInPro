@@ -34,8 +34,8 @@ function Router() {
       ) : (
         <>
           <Route path="/" component={
-            user.role === "employee" ? EmployeeDashboard : 
-            user.role === "admin" ? AdminDashboard : 
+            (user as any)?.role === "employee" ? EmployeeDashboard : 
+            (user as any)?.role === "admin" ? AdminDashboard : 
             ManagerDashboard
           } />
         </>
