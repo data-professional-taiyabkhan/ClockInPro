@@ -140,6 +140,9 @@ export const insertAttendanceRecordSchema = createInsertSchema(attendanceRecords
 export const insertLocationSchema = createInsertSchema(locations).omit({
   id: true,
   createdAt: true,
+}).extend({
+  latitude: z.number().optional(),
+  longitude: z.number().optional(),
 });
 
 export const insertInvitationSchema = createInsertSchema(employeeInvitations).omit({
