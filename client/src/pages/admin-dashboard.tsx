@@ -257,16 +257,16 @@ export default function AdminDashboard() {
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <Table>
+                <Table className="min-w-full">
                   <TableHeader>
                     <TableRow>
                       <TableHead>Name</TableHead>
                       <TableHead>Postcode</TableHead>
                       <TableHead>Address</TableHead>
                       <TableHead>Radius</TableHead>
-                      <TableHead>Assigned Employees</TableHead>
+                      <TableHead>Employees</TableHead>
                       <TableHead>Status</TableHead>
-                      <TableHead className="w-32">Actions</TableHead>
+                      <TableHead className="text-right min-w-[120px]">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -280,34 +280,30 @@ export default function AdminDashboard() {
                           <TableCell className="font-medium">{location.name}</TableCell>
                           <TableCell>{location.postcode}</TableCell>
                           <TableCell className="max-w-xs truncate">{location.address || '-'}</TableCell>
-                          <TableCell>
-                            {location.latitude && location.longitude ? (
-                              <span className="text-sm text-gray-600 dark:text-gray-400">
-                                {location.latitude.toFixed(4)}, {location.longitude.toFixed(4)}
-                              </span>
-                            ) : (
-                              <span className="text-sm text-gray-400">Not set</span>
-                            )}
-                          </TableCell>
                           <TableCell>{location.radiusMeters}m</TableCell>
-                          <TableCell>{assignedCount} employee(s)</TableCell>
+                          <TableCell>
+                            <Badge variant="outline">
+                              {assignedCount} employee(s)
+                            </Badge>
+                          </TableCell>
                           <TableCell>
                             <Badge variant={location.isActive ? "default" : "secondary"}>
                               {location.isActive ? "Active" : "Inactive"}
                             </Badge>
                           </TableCell>
-                          <TableCell>
-                            <div className="flex space-x-1">
+                          <TableCell className="text-right">
+                            <div className="flex justify-end gap-2">
                               <Button
                                 variant="outline"
                                 size="sm"
                                 onClick={() => openLocationDialog(location)}
-                                className="h-8 w-8 p-0"
+                                title="Edit location"
                               >
                                 <Edit className="h-4 w-4" />
+                                <span className="ml-1 hidden sm:inline">Edit</span>
                               </Button>
                               <Button
-                                variant="outline"
+                                variant="destructive"
                                 size="sm"
                                 onClick={() => {
                                   if (confirm(`Are you sure you want to delete "${location.name}"? This action cannot be undone.`)) {
@@ -315,9 +311,10 @@ export default function AdminDashboard() {
                                   }
                                 }}
                                 disabled={deleteLocationMutation.isPending}
-                                className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                                title="Delete location"
                               >
                                 <Trash2 className="h-4 w-4" />
+                                <span className="ml-1 hidden sm:inline">Delete</span>
                               </Button>
                             </div>
                           </TableCell>
