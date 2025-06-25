@@ -192,6 +192,11 @@ export class DatabaseStorage implements IStorage {
     await db.delete(employeeLocations)
       .where(eq(employeeLocations.locationId, id));
     
+    // Update attendance records to remove location reference
+    await db.update(attendanceRecords)
+      .set({ locationId: null })
+      .where(eq(attendanceRecords.locationId, id));
+    
     // Then delete the location
     await db.delete(locations)
       .where(eq(locations.id, id));

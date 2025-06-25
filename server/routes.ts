@@ -787,11 +787,24 @@ export function registerRoutes(app: Express): Server {
   app.delete("/api/locations/:id", requireAdmin, async (req, res) => {
     try {
       const locationId = parseInt(req.params.id);
+      
+      // Check if location exists
+      const location = await db.select().from(locations).where(eq(locations.id, locationId)).limit(1);
+      if (location.length === 0) {
+        return res.status(404).json({ message: "Location not found" });
+      }
+      
       await storage.deleteLocation(locationId);
       res.json({ message: "Location deleted successfully" });
     } catch (error) {
       console.error("Delete location error:", error);
-      res.status(500).json({ message: "Failed to delete location" });
+      if (error.code === '23503') {
+        res.status(400).json({ 
+          message: "Cannot delete location: it has associated data. Please contact system administrator." 
+        });
+      } else {
+        res.status(500).json({ message: "Failed to delete location" });
+      }
     }
   });
 
