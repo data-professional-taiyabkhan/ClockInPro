@@ -23,6 +23,10 @@ export default function AdminDashboard() {
     queryKey: ["/api/locations"],
   });
 
+  const { data: employeeLocationAssignments = [] } = useQuery({
+    queryKey: ["/api/employee-locations"],
+  });
+
   const createLocationMutation = useMutation({
     mutationFn: async (data: InsertLocation) => {
       return await apiRequest("/api/locations", { method: "POST", body: data });
@@ -252,68 +256,62 @@ export default function AdminDashboard() {
                       <TableHead>Name</TableHead>
                       <TableHead>Postcode</TableHead>
                       <TableHead>Address</TableHead>
-                      <TableHead>Coordinates</TableHead>
                       <TableHead>Radius</TableHead>
+                      <TableHead>Assigned Employees</TableHead>
                       <TableHead>Status</TableHead>
-                      <TableHead className="w-40">Actions</TableHead>
+                      <TableHead className="w-32">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {locations.map((location: Location) => (
-                      <TableRow key={location.id}>
-                        <TableCell className="font-medium">{location.name}</TableCell>
-                        <TableCell>{location.postcode}</TableCell>
-                        <TableCell className="max-w-xs truncate">{location.address}</TableCell>
-                        <TableCell>
-                          {location.latitude && location.longitude ? (
-                            <span className="text-sm text-gray-600 dark:text-gray-400">
-                              {location.latitude.toFixed(4)}, {location.longitude.toFixed(4)}
-                            </span>
-                          ) : (
-                            <span className="text-sm text-gray-400">Not set</span>
-                          )}
-                        </TableCell>
-                        <TableCell>{location.radiusMeters}m</TableCell>
-                        <TableCell>
-                          <Badge variant={location.isActive ? "default" : "secondary"}>
-                            {location.isActive ? "Active" : "Inactive"}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="w-40">
-                          <div className="flex space-x-2 justify-start">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                console.log("Edit button clicked for:", location.name);
-                                openLocationDialog(location);
-                              }}
-                              className="flex items-center gap-1 min-w-fit"
-                              title="Edit location"
-                            >
-                              <Edit className="w-4 h-4" />
-                              <span className="hidden sm:inline">Edit</span>
-                            </Button>
-                            <Button
-                              variant="destructive"
-                              size="sm"
-                              onClick={() => {
-                                console.log("Delete button clicked for:", location.name);
-                                if (window.confirm(`Are you sure you want to delete "${location.name}"? This will remove all employee assignments to this location.`)) {
-                                  deleteLocationMutation.mutate(location.id);
-                                }
-                              }}
-                              disabled={deleteLocationMutation.isPending}
-                              className="flex items-center gap-1 min-w-fit bg-red-600 hover:bg-red-700"
-                              title="Delete location"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                              <span className="hidden sm:inline">Delete</span>
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                    {locations.map((location: Location) => {
+                      const assignedCount = employeeLocationAssignments?.filter(
+                        (assignment: any) => assignment.location.id === location.id
+                      ).length || 0;
+                      
+                      return (
+                        <TableRow key={location.id}>
+                          <TableCell className="font-medium">{location.name}</TableCell>
+                          <TableCell>{location.postcode}</TableCell>
+                          <TableCell className="max-w-xs truncate">{location.address || '-'}</TableCell>
+                          <TableCell>{location.radiusMeters}m</TableCell>
+                          <TableCell>{assignedCount} employee(s)</TableCell>
+                          <TableCell>
+                            <Badge variant={location.isActive ? "default" : "secondary"}>
+                              {location.isActive ? "Active" : "Inactive"}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex space-x-1">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  console.log("Edit button clicked for:", location.name);
+                                  setEditingLocation(location);
+                                  setIsLocationDialogOpen(true);
+                                }}
+                                title="Edit location"
+                              >
+                                <Edit className="w-4 h-4" />
+                              </Button>
+                              <Button
+                                variant="destructive" 
+                                size="sm"
+                                onClick={() => {
+                                  if (window.confirm(`Are you sure you want to delete "${location.name}"?`)) {
+                                    deleteLocationMutation.mutate(location.id);
+                                  }
+                                }}
+                                disabled={deleteLocationMutation.isPending}
+                                title="Delete location"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </div>
