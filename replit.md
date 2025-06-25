@@ -136,4 +136,5 @@ Changelog:
 
 ```
 Preferred communication style: Simple, everyday language.
+Access control: Only administrators can create and edit office locations.
 ```
