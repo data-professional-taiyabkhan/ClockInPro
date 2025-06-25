@@ -227,15 +227,22 @@ export default function AdminDashboard() {
                       <Button
                         type="button"
                         variant="outline"
-                        onClick={() => setIsLocationDialogOpen(false)}
+                        onClick={() => {
+                          setIsLocationDialogOpen(false);
+                          setEditingLocation(null);
+                        }}
                       >
                         Cancel
                       </Button>
                       <Button
                         type="submit"
                         disabled={createLocationMutation.isPending || updateLocationMutation.isPending}
+                        className={editingLocation ? "bg-blue-600 hover:bg-blue-700" : "bg-green-600 hover:bg-green-700"}
                       >
-                        {editingLocation ? "Update" : "Create"} Location
+                        {(createLocationMutation.isPending || updateLocationMutation.isPending) ? 
+                          "Processing..." : 
+                          editingLocation ? "Update Location" : "Create Location"
+                        }
                       </Button>
                     </div>
                   </form>
@@ -273,6 +280,15 @@ export default function AdminDashboard() {
                           <TableCell className="font-medium">{location.name}</TableCell>
                           <TableCell>{location.postcode}</TableCell>
                           <TableCell className="max-w-xs truncate">{location.address || '-'}</TableCell>
+                          <TableCell>
+                            {location.latitude && location.longitude ? (
+                              <span className="text-sm text-gray-600 dark:text-gray-400">
+                                {location.latitude.toFixed(4)}, {location.longitude.toFixed(4)}
+                              </span>
+                            ) : (
+                              <span className="text-sm text-gray-400">Not set</span>
+                            )}
+                          </TableCell>
                           <TableCell>{location.radiusMeters}m</TableCell>
                           <TableCell>{assignedCount} employee(s)</TableCell>
                           <TableCell>
@@ -291,19 +307,21 @@ export default function AdminDashboard() {
                                   setIsLocationDialogOpen(true);
                                 }}
                                 title="Edit location"
+                                className="hover:bg-blue-50 hover:border-blue-300"
                               >
-                                <Edit className="w-4 h-4" />
+                                <Edit className="w-4 h-4 text-blue-600" />
                               </Button>
                               <Button
                                 variant="destructive" 
                                 size="sm"
                                 onClick={() => {
-                                  if (window.confirm(`Are you sure you want to delete "${location.name}"?`)) {
+                                  if (window.confirm(`Are you sure you want to delete "${location.name}"? This will remove all employee assignments to this location.`)) {
                                     deleteLocationMutation.mutate(location.id);
                                   }
                                 }}
                                 disabled={deleteLocationMutation.isPending}
                                 title="Delete location"
+                                className="hover:bg-red-600"
                               >
                                 <Trash2 className="w-4 h-4" />
                               </Button>
