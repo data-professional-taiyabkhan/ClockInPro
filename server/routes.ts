@@ -892,52 +892,62 @@ export function registerRoutes(app: Express): Server {
   // Face verification for check-in
   app.post("/api/verify-face", requireAuth, async (req, res) => {
     try {
-      const { imageData, userLocation } = req.body;
+      const { imageData, location, userLocation, action } = req.body;
+      const finalLocation = location || userLocation;
+      
+      console.log("Face verification request:", {
+        user: req.user?.email,
+        hasImageData: !!imageData,
+        hasLocation: !!finalLocation,
+        locationData: finalLocation,
+        action
+      });
       
       if (!req.user?.faceImageUrl) {
         return res.status(400).json({ message: "No face image registered. Please register your face first." });
       }
 
-      // Location verification - check if user is assigned to this location
-      if (userLocation && userLocation.postcode) {
-        // Get all locations assigned to this employee
-        const assignedLocations = await storage.getEmployeeLocations(req.user!.id);
-        
-        // Check if the user's current postcode matches any assigned location
-        const allowedLocation = assignedLocations.find(
-          loc => loc.postcode.toUpperCase() === userLocation.postcode.toUpperCase()
-        );
-        
-        if (!allowedLocation) {
-          return res.status(403).json({ 
-            message: "You are not allowed to work from this location. Please contact your manager to assign you to this work location." 
-          });
-        }
-
-        // Distance verification if coordinates provided
-        if (userLocation.latitude && userLocation.longitude && 
-            allowedLocation.latitude && allowedLocation.longitude) {
-          const distance = calculateDistance(
-            parseFloat(userLocation.latitude),
-            parseFloat(userLocation.longitude),
-            parseFloat(allowedLocation.latitude),
-            parseFloat(allowedLocation.longitude)
-          );
-
-          if (distance > allowedLocation.radiusMeters) {
-            return res.status(403).json({ 
-              message: `You are ${Math.round(distance)}m away from ${allowedLocation.name}. Please move closer to the work location.` 
-            });
-          }
-        }
-      } else {
-        // If no location provided, check if user has any assigned locations
-        const assignedLocations = await storage.getEmployeeLocations(req.user!.id);
-        if (assignedLocations.length > 0) {
+      // Location verification - check if user is assigned to any locations
+      const assignedLocations = await storage.getEmployeeLocations(req.user!.id);
+      console.log("User assigned locations:", assignedLocations);
+      
+      if (assignedLocations.length > 0) {
+        if (!finalLocation || (!finalLocation.latitude || !finalLocation.longitude)) {
           return res.status(400).json({
             message: "Location verification required. Please enable location services and try again."
           });
         }
+
+        // Find the closest assigned location
+        let closestLocation = null;
+        let minDistance = Infinity;
+        
+        for (const assignedLocation of assignedLocations) {
+          if (assignedLocation.latitude && assignedLocation.longitude) {
+            const distance = calculateDistance(
+              parseFloat(finalLocation.latitude),
+              parseFloat(finalLocation.longitude),
+              parseFloat(assignedLocation.latitude),
+              parseFloat(assignedLocation.longitude)
+            );
+            
+            console.log(`Distance to ${assignedLocation.name}: ${distance}m (allowed: ${assignedLocation.radiusMeters}m)`);
+            
+            if (distance <= assignedLocation.radiusMeters && distance < minDistance) {
+              minDistance = distance;
+              closestLocation = assignedLocation;
+            }
+          }
+        }
+
+        if (!closestLocation) {
+          const locationNames = assignedLocations.map(loc => loc.name).join(', ');
+          return res.status(403).json({ 
+            message: `You are not within range of any assigned work location (${locationNames}). Please move closer to your assigned work location.` 
+          });
+        }
+        
+        console.log(`Location verification passed for ${closestLocation.name} (${minDistance}m away)`);
       }
 
       // Face verification using computer vision
