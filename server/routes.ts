@@ -1006,10 +1006,39 @@ export function registerRoutes(app: Express): Server {
         
         if (comparisonResult.isMatch && comparisonResult.similarity >= threshold) {
           console.log(`Face verification successful for ${req.user.email}:`, comparisonResult.details);
+          
+          // Create attendance record based on action
+          let attendanceRecord;
+          if (action === 'out') {
+            // Clock out - update existing record
+            const today = new Date().toISOString().split('T')[0];
+            const todayRecord = await storage.getTodayAttendanceRecord(req.user.id, today);
+            
+            if (!todayRecord || todayRecord.clockOutTime) {
+              return res.status(400).json({
+                verified: false,
+                message: "No active clock-in found for today or already clocked out."
+              });
+            }
+            
+            attendanceRecord = await storage.updateAttendanceRecord(todayRecord.id, {
+              clockOutTime: new Date(),
+            });
+          } else {
+            // Clock in - create new record
+            attendanceRecord = await storage.createAttendanceRecord({
+              userId: req.user.id,
+              clockInTime: new Date(),
+              date: new Date().toISOString().split('T')[0],
+              verified: true,
+            });
+          }
+
           res.json({
             verified: true,
-            message: `Welcome! Face verification successful (${comparisonResult.similarity.toFixed(1)}% similarity)`,
-            location: userLocation?.postcode
+            action: action || 'in',
+            message: `Face verified successfully! You have been clocked ${action === 'out' ? 'out' : 'in'}.`,
+            attendance: attendanceRecord
           });
         } else {
           console.log(`Face verification failed for ${req.user.email}:`, comparisonResult.details);
