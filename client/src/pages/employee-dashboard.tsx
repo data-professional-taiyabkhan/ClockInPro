@@ -197,7 +197,7 @@ export default function EmployeeDashboard() {
           videoRef.current.srcObject = streamRef.current;
           videoRef.current.play().then(() => {
             console.log('Video playing successfully');
-            getUserLocation();
+            getUserLocation().catch(console.error);
           }).catch((playError) => {
             console.log('Video play error:', playError);
           });
