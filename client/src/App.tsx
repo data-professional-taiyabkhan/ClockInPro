@@ -4,6 +4,7 @@ import { Toaster } from "@/components/ui/toaster";
 import LoginPage from "@/pages/login-page";
 import EmployeeDashboard from "@/pages/employee-dashboard";
 import ManagerDashboard from "@/pages/manager-dashboard";
+import AdminDashboard from "@/pages/admin-dashboard";
 import NotFound from "@/pages/not-found";
 import { useQuery } from "@tanstack/react-query";
 
@@ -32,7 +33,11 @@ function Router() {
         </>
       ) : (
         <>
-          <Route path="/" component={user.role === "employee" ? EmployeeDashboard : ManagerDashboard} />
+          <Route path="/" component={
+            user.role === "employee" ? EmployeeDashboard : 
+            user.role === "admin" ? AdminDashboard : 
+            ManagerDashboard
+          } />
         </>
       )}
       <Route component={NotFound} />
