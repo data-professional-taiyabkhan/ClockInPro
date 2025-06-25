@@ -130,6 +130,7 @@ The PostgreSQL database uses the following key tables:
 ```
 Changelog:
 - June 24, 2025. Initial setup
+- June 25, 2025. Fixed distance calculation and increased office location radius from 100m to 3000m for practical check-in range
 ```
 
 ## User Preferences
