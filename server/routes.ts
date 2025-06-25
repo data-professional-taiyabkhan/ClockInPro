@@ -8,6 +8,8 @@ import { db } from "./db";
 import crypto from "crypto";
 import { format, differenceInMinutes } from "date-fns";
 
+const UK_POSTCODE_REGEX = /^[A-Z]{1,2}\d[A-Z\d]?\s?\d[A-Z]{2}$/i;
+
 // Calculate Euclidean distance between two 128-dimensional vectors
 function calculateEuclideanDistance(desc1: number[], desc2: number[]): number {
   if (desc1.length !== desc2.length) {
@@ -531,8 +533,7 @@ async function compareFacialFeatures(sharp: any, buffer1: Buffer, buffer2: Buffe
   return totalWeight > 0 ? totalSimilarity / totalWeight : 0;
 }
 
-// UK Postcode validation regex
-const UK_POSTCODE_REGEX = /^[A-Z]{1,2}\d[A-Z\d]?\s?\d[A-Z]{2}$/i;
+
 
 // Simple distance calculation for location verification
 function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -749,31 +750,7 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Location management (Admin only)
-  app.post("/api/locations", requireAdmin, async (req, res) => {
-    try {
-      const { name, postcode, latitude, longitude, radiusMeters } = req.body;
-      
-      if (!UK_POSTCODE_REGEX.test(postcode)) {
-        return res.status(400).json({ message: "Invalid UK postcode format" });
-      }
-
-      const location = await storage.createLocation({
-        name,
-        postcode: postcode.toUpperCase(),
-        latitude,
-        longitude,
-        radiusMeters: radiusMeters || 100
-      });
-
-      res.json(location);
-    } catch (error) {
-      console.error("Location creation error:", error);
-      res.status(500).json({ message: "Failed to create location" });
-    }
-  });
-
-  // Location management (Admin only)
+  // Location management routes
   app.get("/api/locations", requireAuth, async (req, res) => {
     try {
       const locations = await storage.getActiveLocations();
