@@ -301,29 +301,23 @@ export default function AdminDashboard() {
                               <Button
                                 variant="outline"
                                 size="sm"
-                                onClick={() => {
-                                  console.log("Edit button clicked for:", location.name);
-                                  setEditingLocation(location);
-                                  setIsLocationDialogOpen(true);
-                                }}
-                                title="Edit location"
-                                className="hover:bg-blue-50 hover:border-blue-300"
+                                onClick={() => openLocationDialog(location)}
+                                className="h-8 w-8 p-0"
                               >
-                                <Edit className="w-4 h-4 text-blue-600" />
+                                <Edit className="h-4 w-4" />
                               </Button>
                               <Button
-                                variant="destructive" 
+                                variant="outline"
                                 size="sm"
                                 onClick={() => {
-                                  if (window.confirm(`Are you sure you want to delete "${location.name}"? This will remove all employee assignments to this location.`)) {
+                                  if (confirm(`Are you sure you want to delete "${location.name}"? This action cannot be undone.`)) {
                                     deleteLocationMutation.mutate(location.id);
                                   }
                                 }}
                                 disabled={deleteLocationMutation.isPending}
-                                title="Delete location"
-                                className="hover:bg-red-600"
+                                className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
                               >
-                                <Trash2 className="w-4 h-4" />
+                                <Trash2 className="h-4 w-4" />
                               </Button>
                             </div>
                           </TableCell>
