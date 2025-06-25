@@ -47,21 +47,34 @@ export default function EmployeeDashboard() {
     queryFn: () => apiRequest("/api/attendance"),
   });
 
-  // Get user location
-  const getUserLocation = () => {
-    if (navigator.geolocation) {
+  // Get user location with Promise support
+  const getUserLocation = (): Promise<UserLocation> => {
+    return new Promise((resolve, reject) => {
+      if (!navigator.geolocation) {
+        reject(new Error('Geolocation not supported'));
+        return;
+      }
+
       navigator.geolocation.getCurrentPosition(
         (position) => {
-          setUserLocation({
+          const location = {
             latitude: position.coords.latitude,
             longitude: position.coords.longitude,
-          });
+          };
+          setUserLocation(location);
+          resolve(location);
         },
         (error) => {
-          console.warn("Location access denied:", error);
+          console.error("Location access error:", error);
+          reject(error);
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 300000
         }
       );
-    }
+    });
   };
 
   // Face image upload mutation
@@ -90,19 +103,34 @@ export default function EmployeeDashboard() {
 
   // Face verification mutation
   const verifyFaceMutation = useMutation({
-    mutationFn: async (imageData: string) => {
+    mutationFn: async (data: { imageData: string; location?: UserLocation }) => {
+      const requestBody: any = { 
+        imageData: data.imageData,
+        action: todayAttendance?.record?.clockOutTime ? 'in' : (todayAttendance?.record?.clockInTime ? 'out' : 'in')
+      };
+      
+      if (data.location) {
+        requestBody.location = {
+          latitude: data.location.latitude?.toString(),
+          longitude: data.location.longitude?.toString()
+        };
+      }
+      
       return await apiRequest("/api/verify-face", {
         method: "POST",
-        body: JSON.stringify({ imageData, userLocation }),
+        body: JSON.stringify(requestBody),
       });
     },
     onSuccess: (data) => {
       if (data.verified) {
-        clockInMutation.mutate({
-          locationPostcode: userLocation.postcode,
-          verified: true,
+        toast({
+          title: "Success",
+          description: `Successfully ${data.action === 'in' ? 'clocked in' : 'clocked out'}!`,
         });
+        queryClient.invalidateQueries({ queryKey: ["/api/attendance/today"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/attendance"] });
       }
+      setCapturedImage("");
     },
     onError: (error: Error) => {
       toast({
@@ -197,7 +225,7 @@ export default function EmployeeDashboard() {
           videoRef.current.srcObject = streamRef.current;
           videoRef.current.play().then(() => {
             console.log('Video playing successfully');
-            getUserLocation().catch(console.error);
+            getUserLocation().catch(err => console.log('Initial location request:', err.message));
           }).catch((playError) => {
             console.log('Video play error:', playError);
           });
@@ -251,10 +279,24 @@ export default function EmployeeDashboard() {
     }
   };
 
-  const handleFaceCheckIn = () => {
-    if (capturedImage) {
-      verifyFaceMutation.mutate(capturedImage);
-      setCapturedImage("");
+  const handleFaceCheckIn = async () => {
+    if (!capturedImage) return;
+    
+    try {
+      // Always get fresh location for employees
+      const location = await getUserLocation();
+      console.log('Location obtained for verification:', location);
+      
+      verifyFaceMutation.mutate({
+        imageData: capturedImage,
+        location: location
+      });
+    } catch (error) {
+      toast({
+        title: "Location Required",
+        description: "Please enable location services and try again. Location verification is required for check-in.",
+        variant: "destructive",
+      });
     }
   };
 
