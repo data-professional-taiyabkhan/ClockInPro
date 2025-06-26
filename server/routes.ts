@@ -1216,10 +1216,24 @@ export function registerRoutes(app: Express): Server {
           faceEmbedding = req.user.faceEmbedding as number[];
         }
         
+        // Add critical debugging to track the exact comparison
+        console.log(`=== FACE VERIFICATION DEBUG ===`);
+        console.log(`User: ${req.user.email} (ID: ${req.user.id})`);
+        console.log(`Stored face embedding dimensions: ${faceEmbedding.length}`);
+        console.log(`Comparing against stored face template for user: ${req.user.email}`);
+        console.log(`===============================`);
+        
         const verificationResult = await compareFacesWithPython(faceEmbedding, capturedImage, 0.6);
         
+        console.log(`=== COMPARISON RESULT ===`);
+        console.log(`User being verified: ${req.user.email}`);
+        console.log(`Distance calculated: ${verificationResult.distance}`);
+        console.log(`Threshold: ${verificationResult.threshold}`);
+        console.log(`Verification result: ${verificationResult.verified ? 'PASS' : 'FAIL'}`);
+        console.log(`========================`);
+        
         if (verificationResult.verified) {
-          console.log(`Face verification successful for ${req.user.email} - Distance: ${verificationResult.distance}, Threshold: ${verificationResult.threshold}`);
+          console.log(`✓ Face verification successful for ${req.user.email} - Distance: ${verificationResult.distance}, Threshold: ${verificationResult.threshold}`);
           
           // Create attendance record based on action
           let attendanceRecord;
