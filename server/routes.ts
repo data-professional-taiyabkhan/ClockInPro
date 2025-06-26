@@ -1034,11 +1034,20 @@ export function registerRoutes(app: Express): Server {
         
         console.log(`Face detection passed for ${req.user.email} - Captured: ${capturedFaceResult.confidence}%, Registered: ${registeredFaceResult.confidence}%`);
         
-        // Extract face embedding from captured image
-        // For now, generate a mock embedding - in production, frontend should send face-api.js descriptor
-        const probeEmbedding = await generateProbeEmbedding(capturedImage);
+        // Extract real face embedding from captured image using Python service
+        let probeEmbedding: number[];
+        try {
+          probeEmbedding = await generateProbeEmbedding(capturedImage);
+          console.log(`Probe embedding generated successfully - ${probeEmbedding.length} dimensions`);
+        } catch (error) {
+          console.error(`Failed to generate probe embedding for ${req.user.email}:`, error);
+          return res.status(400).json({
+            verified: false,
+            message: "Failed to process face image. Please ensure good lighting and try again."
+          });
+        }
         
-        // Use the new face comparison utility with much stricter threshold
+        // Use strict face comparison with 0.25 threshold
         const { verifyFace } = await import('./lib/faceCompare');
         const verificationResult = await verifyFace(req.user.id, probeEmbedding, 0.25);
         

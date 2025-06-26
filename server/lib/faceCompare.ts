@@ -64,8 +64,8 @@ export async function extractFaceEmbedding(imageData: string): Promise<number[]>
 export async function verifyFace(
   userId: number, 
   probeEmbedding: number[], 
-  threshold: number = 0.6
-): Promise<{ verified: boolean; distance: number; threshold: number; userEmail?: string }> {
+  threshold: number = 0.25
+): Promise<{ verified: boolean; distance: number; threshold: number; userEmail?: string; securityLevel?: string; reason?: string }> {
   
   // Load user's stored embedding from database
   const user = await storage.getUser(userId);
@@ -94,16 +94,14 @@ export async function verifyFace(
   // Calculate distance
   const distance = face_distance(normalizedRegistered, normalizedProbe);
   
-  // Log the comparison details
-  console.log({ 
-    user: user.email, 
-    distance: distance.toFixed(4), 
-    threshold,
-    embeddingDimensions: {
-      registered: normalizedRegistered.length,
-      probe: normalizedProbe.length
-    }
-  });
+  // Log detailed comparison for security audit
+  console.log(`=== FACE VERIFICATION SECURITY CHECK ===`);
+  console.log(`User: ${user.email}`);
+  console.log(`Distance: ${distance.toFixed(4)}`);
+  console.log(`Threshold: ${threshold}`);
+  console.log(`Embedding Dimensions: Registered=${normalizedRegistered.length}, Probe=${normalizedProbe.length}`);
+  console.log(`Security Status: ${distance <= threshold ? 'WITHIN_THRESHOLD' : 'EXCEEDS_THRESHOLD'}`);
+  console.log(`==========================================`);
   
   // Enhanced security: Multiple verification layers
   let verified = false;
