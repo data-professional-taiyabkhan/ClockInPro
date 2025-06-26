@@ -839,7 +839,7 @@ export function registerRoutes(app: Express): Server {
         // With DeepFace, we store the image directly and compare images during verification
         const { spawn } = await import('child_process');
         const result = await new Promise<{ success: boolean; image_data?: string; error?: string }>((resolve, reject) => {
-          const pythonProcess = spawn('python3', ['server/simple_deepface_verification.py', 'store'], {
+          const pythonProcess = spawn('python3', ['server/actual_deepface.py', 'store'], {
             stdio: ['pipe', 'pipe', 'pipe']
           });
           
@@ -1196,7 +1196,7 @@ export function registerRoutes(app: Express): Server {
         // Face comparison using DeepFace
         const { spawn } = await import('child_process');
         const verificationResult = await new Promise<{ success: boolean; result?: { verified: boolean; distance: number; threshold: number; model: string }; error?: string }>((resolve, reject) => {
-          const pythonProcess = spawn('python3', ['server/simple_deepface_verification.py', 'verify'], {
+          const pythonProcess = spawn('python3', ['server/actual_deepface.py', 'verify'], {
             stdio: ['pipe', 'pipe', 'pipe']
           });
           
