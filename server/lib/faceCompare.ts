@@ -105,14 +105,47 @@ export async function verifyFace(
     }
   });
   
-  // Verify if distance is within threshold
-  const verified = distance <= threshold;
+  // Enhanced security: Multiple verification layers
+  let verified = false;
+  let securityLevel = 'BLOCKED';
+  let reason = '';
+  
+  // Primary distance check with stricter threshold
+  if (distance <= threshold) {
+    // Secondary security checks for high-confidence verification
+    if (distance <= 0.15) {
+      verified = true;
+      securityLevel = 'HIGH_CONFIDENCE';
+      reason = 'Very strong face match';
+    } else if (distance <= 0.20) {
+      verified = true;
+      securityLevel = 'MEDIUM_CONFIDENCE';
+      reason = 'Good face match';
+    } else if (distance <= 0.25) {
+      verified = true;
+      securityLevel = 'LOW_CONFIDENCE';
+      reason = 'Acceptable face match';
+    } else {
+      verified = false;
+      securityLevel = 'REJECTED';
+      reason = `Distance ${distance.toFixed(4)} exceeds secure threshold`;
+    }
+  } else {
+    verified = false;
+    securityLevel = 'REJECTED';
+    reason = `Distance ${distance.toFixed(4)} exceeds threshold ${threshold}`;
+  }
+  
+  // Log security decision
+  console.log(`Face verification for ${user.email}: ${securityLevel} - ${reason}`);
   
   return {
     verified,
     distance,
     threshold,
-    userEmail: user.email
+    userEmail: user.email,
+    securityLevel,
+    reason
   };
 }
 

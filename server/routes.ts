@@ -1012,23 +1012,23 @@ export function registerRoutes(app: Express): Server {
           });
         }
 
-        // Validate that captured image contains an actual face
+        // Validate that captured image contains an actual face with high confidence
         const capturedFaceResult = await detectFaceInImage(capturedImage);
-        if (!capturedFaceResult.hasFace || capturedFaceResult.confidence < 35) {
+        if (!capturedFaceResult.hasFace || capturedFaceResult.confidence < 60) {
           console.log(`Face detection failed for ${req.user.email} - captured image:`, capturedFaceResult.details);
           return res.status(400).json({
             verified: false,
-            message: "No face detected! Please ensure your face is clearly visible and well-lit."
+            message: "Face detection quality too low. Please ensure your face is clearly visible, well-lit, and looking directly at the camera."
           });
         }
         
-        // Verify that registered image also has a face
+        // Verify that registered image also has a face with high confidence
         const registeredFaceResult = await detectFaceInImage(registeredImage);
-        if (!registeredFaceResult.hasFace || registeredFaceResult.confidence < 35) {
+        if (!registeredFaceResult.hasFace || registeredFaceResult.confidence < 60) {
           console.log(`Face detection failed for ${req.user.email} - registered image:`, registeredFaceResult.details);
           return res.status(400).json({
             verified: false,
-            message: "Invalid registered face image. Please contact your manager to re-register your face."
+            message: "Invalid registered face image quality. Please contact your manager to re-register your face with a clearer photo."
           });
         }
         
@@ -1038,9 +1038,9 @@ export function registerRoutes(app: Express): Server {
         // For now, generate a mock embedding - in production, frontend should send face-api.js descriptor
         const probeEmbedding = await generateProbeEmbedding(capturedImage);
         
-        // Use the new face comparison utility
+        // Use the new face comparison utility with much stricter threshold
         const { verifyFace } = await import('./lib/faceCompare');
-        const verificationResult = await verifyFace(req.user.id, probeEmbedding, 0.6);
+        const verificationResult = await verifyFace(req.user.id, probeEmbedding, 0.25);
         
         if (verificationResult.verified) {
           console.log(`Face verification successful for ${req.user.email} - Distance: ${verificationResult.distance}, Threshold: ${verificationResult.threshold}`);

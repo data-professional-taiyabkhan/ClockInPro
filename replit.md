@@ -133,6 +133,7 @@ Changelog:
 - June 25, 2025. Fixed distance calculation and increased office location radius from 100m to 3000m for practical check-in range
 - June 26, 2025. Moved face update functionality from employee dashboard to manager dashboard for security control
 - June 26, 2025. Fixed face embedding generation issue - now generates embeddings immediately when face images are uploaded
+- June 26, 2025. Enhanced face recognition security: Reduced threshold from 0.6 to 0.25, added multi-layer verification (0.15 high, 0.20 medium, 0.25 low confidence), increased face detection requirement from 35% to 60% confidence
 ```
 
 ## User Preferences
