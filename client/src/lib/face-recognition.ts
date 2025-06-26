@@ -190,6 +190,39 @@ export class FaceRecognitionService {
       };
     }
   }
+  // Calculate Euclidean distance between two face descriptors
+  static calculateEuclideanDistance(descriptor1: number[], descriptor2: number[]): number {
+    if (descriptor1.length !== descriptor2.length) {
+      throw new Error('Descriptors must have the same length');
+    }
+    
+    let sum = 0;
+    for (let i = 0; i < descriptor1.length; i++) {
+      const diff = descriptor1[i] - descriptor2[i];
+      sum += diff * diff;
+    }
+    
+    return Math.sqrt(sum);
+  }
+
+  // Compare two face descriptors with a standard threshold
+  static compareFaceDescriptors(storedDescriptor: number[], capturedDescriptor: number[], threshold: number = 0.6): {
+    isMatch: boolean;
+    distance: number;
+    confidence: number;
+  } {
+    const distance = this.calculateEuclideanDistance(storedDescriptor, capturedDescriptor);
+    const isMatch = distance <= threshold;
+    
+    // Convert distance to confidence percentage (lower distance = higher confidence)
+    const confidence = Math.max(0, Math.min(100, (1 - distance) * 100));
+    
+    return {
+      isMatch,
+      distance,
+      confidence
+    };
+  }
 }
 
 export const faceRecognition = new FaceRecognitionService();
