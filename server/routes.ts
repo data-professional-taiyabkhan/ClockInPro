@@ -1012,6 +1012,83 @@ export function registerRoutes(app: Express): Server {
   });
 
   // Face verification for check-in
+  // Face comparison using Python face_recognition library (same as desktop system)
+  async function compareFacesWithPython(
+    knownEncoding: number[] | string, 
+    unknownImageData: string, 
+    tolerance: number = 0.6
+  ): Promise<{ verified: boolean; distance: number; threshold: number; userEmail?: string }> {
+    try {
+      const { spawn } = await import('child_process');
+      
+      return new Promise((resolve, reject) => {
+        // Use Python face recognition service for direct comparison
+        const pythonProcess = spawn('python3', ['server/face_recognition_service.py', 'compare'], {
+          stdio: ['pipe', 'pipe', 'pipe']
+        });
+        
+        let output = '';
+        let errorOutput = '';
+        
+        pythonProcess.stdout.on('data', (data) => {
+          output += data.toString();
+        });
+        
+        pythonProcess.stderr.on('data', (data) => {
+          errorOutput += data.toString();
+        });
+        
+        pythonProcess.on('close', (code) => {
+          if (code === 0) {
+            try {
+              const result = JSON.parse(output);
+              if (result.success && result.result) {
+                const { distance, is_match } = result.result;
+                console.log(`=== PYTHON FACE_RECOGNITION COMPARISON ===`);
+                console.log(`Distance: ${distance.toFixed(4)}`);
+                console.log(`Threshold: ${tolerance}`);
+                console.log(`Match: ${is_match ? 'YES' : 'NO'}`);
+                console.log(`========================================`);
+                
+                resolve({
+                  verified: is_match,
+                  distance: distance,
+                  threshold: tolerance
+                });
+              } else {
+                reject(new Error(result.error || 'Face comparison failed'));
+              }
+            } catch (parseError) {
+              reject(new Error(`Invalid response from face recognition service: ${output}`));
+            }
+          } else {
+            reject(new Error(`Face recognition service failed: ${errorOutput}`));
+          }
+        });
+        
+        // Parse known encoding if it's a string
+        let parsedEncoding: number[];
+        if (typeof knownEncoding === 'string') {
+          parsedEncoding = JSON.parse(knownEncoding);
+        } else {
+          parsedEncoding = knownEncoding;
+        }
+        
+        // Send comparison data to Python process
+        const inputData = JSON.stringify({
+          known_encoding: parsedEncoding,
+          unknown_image: unknownImageData,
+          tolerance: tolerance
+        });
+        pythonProcess.stdin.write(inputData);
+        pythonProcess.stdin.end();
+      });
+    } catch (error) {
+      console.error('Python face comparison error:', error);
+      throw new Error('Failed to compare faces using face_recognition library');
+    }
+  }
+
   app.post("/api/verify-face", requireAuth, async (req, res) => {
     try {
       const { imageData, location, userLocation, action } = req.body;
@@ -1124,7 +1201,22 @@ export function registerRoutes(app: Express): Server {
         }
         
         // Use direct Python face_recognition library comparison (same as desktop system)
-        const verificationResult = await compareFacesWithPython(req.user.faceEmbedding!, capturedImage, 0.6);
+        if (!req.user.faceEmbedding) {
+          return res.status(400).json({
+            verified: false,
+            message: "No face template found for your account. Please contact your manager to register your face."
+          });
+        }
+        
+        // Parse face embedding if it's stored as string
+        let faceEmbedding: number[];
+        if (typeof req.user.faceEmbedding === 'string') {
+          faceEmbedding = JSON.parse(req.user.faceEmbedding);
+        } else {
+          faceEmbedding = req.user.faceEmbedding as number[];
+        }
+        
+        const verificationResult = await compareFacesWithPython(faceEmbedding, capturedImage, 0.6);
         
         if (verificationResult.verified) {
           console.log(`Face verification successful for ${req.user.email} - Distance: ${verificationResult.distance}, Threshold: ${verificationResult.threshold}`);
