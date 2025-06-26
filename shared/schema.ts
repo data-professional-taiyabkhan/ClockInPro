@@ -6,6 +6,7 @@ import {
   serial,
   integer,
   boolean,
+  json,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
@@ -20,6 +21,7 @@ export const users = pgTable("users", {
   password: varchar("password").notNull(),
   role: varchar("role").notNull().default("employee"), // employee, manager, admin
   faceImageUrl: varchar("face_image_url"), // Simple face image for recognition
+  faceEmbedding: json("face_embedding"), // Face embedding for recognition
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
