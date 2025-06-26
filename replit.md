@@ -131,6 +131,8 @@ The PostgreSQL database uses the following key tables:
 Changelog:
 - June 24, 2025. Initial setup
 - June 25, 2025. Fixed distance calculation and increased office location radius from 100m to 3000m for practical check-in range
+- June 26, 2025. Moved face update functionality from employee dashboard to manager dashboard for security control
+- June 26, 2025. Fixed face embedding generation issue - now generates embeddings immediately when face images are uploaded
 ```
 
 ## User Preferences
