@@ -597,6 +597,28 @@ function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: numbe
   return R * c; // Distance in meters
 }
 
+// Generate probe embedding from captured image
+// In production, this should be replaced with face-api.js descriptors from frontend
+async function generateProbeEmbedding(imageData: string): Promise<number[]> {
+  // Placeholder: Generate a pseudo-random but consistent embedding based on image hash
+  // This will be replaced by actual face-api.js descriptors from the frontend
+  const imageHash = imageData.slice(-100); // Use last 100 chars as seed
+  const embedding = new Array(128);
+  
+  let seed = 0;
+  for (let i = 0; i < imageHash.length; i++) {
+    seed += imageHash.charCodeAt(i);
+  }
+  
+  // Generate deterministic "embedding" for testing
+  for (let i = 0; i < 128; i++) {
+    seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+    embedding[i] = (seed / 0x7fffffff - 0.5) * 2; // Range [-1, 1]
+  }
+  
+  return embedding;
+}
+
 export function registerRoutes(app: Express): Server {
   setupAuth(app);
 
@@ -979,28 +1001,16 @@ export function registerRoutes(app: Express): Server {
         
         console.log(`Face detection passed for ${req.user.email} - Captured: ${capturedFaceResult.confidence}%, Registered: ${registeredFaceResult.confidence}%`);
         
-        // Use embedding-based face recognition
-        let comparisonResult;
+        // Extract face embedding from captured image
+        // For now, generate a mock embedding - in production, frontend should send face-api.js descriptor
+        const probeEmbedding = await generateProbeEmbedding(capturedImage);
         
-        if (req.user && req.user.faceEmbedding && Array.isArray(req.user.faceEmbedding)) {
-          // Use embedding-based comparison with proven threshold
-          console.log(`Using embedding-based comparison for ${req.user.email}`);
-          comparisonResult = await compareEmbeddings(req.user.faceEmbedding, capturedImage);
-        } else {
-          // User needs to re-register with new embedding system
-          console.log(`No face embedding found for ${req.user.email} - user needs to re-register`);
-          return res.status(400).json({
-            verified: false,
-            message: "Face recognition system updated. Please use the 'Update Face Image' button in your dashboard to re-register your face.",
-            requiresReRegistration: true
-          });
-        }
+        // Use the new face comparison utility
+        const { verifyFace } = await import('./lib/faceCompare');
+        const verificationResult = await verifyFace(req.user.id, probeEmbedding, 0.6);
         
-        // Standard threshold for embedding distance (0.6 is proven reliable)
-        const threshold = 60; // Convert to percentage for consistency
-        
-        if (comparisonResult.isMatch && comparisonResult.confidence >= threshold) {
-          console.log(`Face verification successful for ${req.user.email}:`, comparisonResult.details);
+        if (verificationResult.verified) {
+          console.log(`Face verification successful for ${req.user.email} - Distance: ${verificationResult.distance}, Threshold: ${verificationResult.threshold}`);
           
           // Create attendance record based on action
           let attendanceRecord;
