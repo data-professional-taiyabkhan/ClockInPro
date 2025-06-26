@@ -138,6 +138,7 @@ Changelog:
 - June 26, 2025. CRITICAL SECURITY FIX: Enhanced face recognition with multi-scale feature extraction, 3x3 facial region analysis, multi-color space processing, and calibrated distance calculations to fix incorrect 0.27 distance issue. System now properly shows ~0.6 distance for different people, matching desktop system accuracy.
 - June 26, 2025. SIMPLIFIED: Replaced complex face recognition with simple OpenCV-based system that mimics face_recognition library behavior. Uses basic face encoding and Euclidean distance comparison as requested - no complications, just encode uploaded photo, encode webcam image, compare and show distance.
 - June 26, 2025. FIXED DIMENSION MISMATCH: Completely removed old complex face recognition functions and cleared all existing face encodings from database. System now uses only simple_face_recognition.py for both manager uploads and webcam verification, ensuring consistent encoding dimensions.
+- June 26, 2025. CRITICAL FIX: Resolved "undefined distance" error and JSON serialization issues in face verification. Added proper error handling for failed face detection, enhanced OpenCV face detection with multiple scale factors, and fixed boolean JSON serialization. System now properly handles cases where faces cannot be detected in captured images.
 ```
 
 ## User Preferences
