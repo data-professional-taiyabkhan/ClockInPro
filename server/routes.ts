@@ -839,7 +839,7 @@ export function registerRoutes(app: Express): Server {
         // With DeepFace, we store the image directly and compare images during verification
         const { spawn } = await import('child_process');
         const result = await new Promise<{ success: boolean; image_data?: string; error?: string }>((resolve, reject) => {
-          const pythonProcess = spawn('python3', ['server/deepface_recognition.py', 'store'], {
+          const pythonProcess = spawn('python3', ['server/simple_deepface_verification.py', 'store'], {
             stdio: ['pipe', 'pipe', 'pipe']
           });
           
@@ -1204,7 +1204,7 @@ export function registerRoutes(app: Express): Server {
         // Face comparison using DeepFace
         const { spawn } = await import('child_process');
         const verificationResult = await new Promise<{ success: boolean; result?: { verified: boolean; distance: number; threshold: number; model: string }; error?: string }>((resolve, reject) => {
-          const pythonProcess = spawn('python3', ['server/deepface_recognition.py', 'verify'], {
+          const pythonProcess = spawn('python3', ['server/simple_deepface_verification.py', 'verify'], {
             stdio: ['pipe', 'pipe', 'pipe']
           });
           
@@ -1245,14 +1245,15 @@ export function registerRoutes(app: Express): Server {
           pythonProcess.stdin.end();
         });
         
-        console.log(`=== SIMPLE FACE VERIFICATION RESULT ===`);
+        console.log(`=== DEEPFACE VERIFICATION RESULT ===`);
         console.log(`User being verified: ${req.user.email}`);
-        console.log(`Python script success: ${verificationResult.success}`);
+        console.log(`DeepFace success: ${verificationResult.success}`);
         console.log(`Distance calculated: ${verificationResult.result?.distance}`);
-        console.log(`Threshold: 0.6`);
-        console.log(`Match result: ${verificationResult.result?.is_match ? 'PASS' : 'FAIL'}`);
+        console.log(`Threshold: ${verificationResult.result?.threshold}`);
+        console.log(`Model: ${verificationResult.result?.model}`);
+        console.log(`Match result: ${verificationResult.result?.verified ? 'PASS' : 'FAIL'}`);
         console.log(`Error (if any): ${verificationResult.error}`);
-        console.log(`=======================================`);
+        console.log(`=====================================`);
         
         if (!verificationResult.success) {
           console.log(`✗ Face verification FAILED for ${req.user.email} - Error: ${verificationResult.error}`);
@@ -1263,8 +1264,8 @@ export function registerRoutes(app: Express): Server {
           return;
         }
         
-        if (verificationResult.result?.is_match) {
-          console.log(`✓ Face verification successful for ${req.user.email} - Distance: ${verificationResult.result.distance}, Threshold: 0.6`);
+        if (verificationResult.result?.verified) {
+          console.log(`✓ Face verification successful for ${req.user.email} - Distance: ${verificationResult.result.distance}, Threshold: ${verificationResult.result.threshold}`);
           
           // Create attendance record based on action
           let attendanceRecord;
@@ -1295,19 +1296,19 @@ export function registerRoutes(app: Express): Server {
           res.json({
             verified: true,
             distance: verificationResult.result?.distance,
-            threshold: 0.6,
+            threshold: verificationResult.result?.threshold,
             action: action || 'in',
             message: `Face verified successfully! You have been clocked ${action === 'out' ? 'out' : 'in'}.`,
             attendance: attendanceRecord
           });
         } else {
-          console.log(`✗ Face verification REJECTED for ${req.user.email} - Distance: ${verificationResult.result?.distance}, Threshold: 0.6`);
+          console.log(`✗ Face verification REJECTED for ${req.user.email} - Distance: ${verificationResult.result?.distance}, Threshold: ${verificationResult.result?.threshold}`);
           console.log(`This is CORRECT behavior - different person attempting to access ${req.user.email}'s account`);
           res.status(400).json({
             verified: false,
             distance: verificationResult.result?.distance,
-            threshold: 0.6,
-            message: `Face doesn't match registered face. Distance: ${verificationResult.result?.distance?.toFixed(4) || 'unknown'}, Required: 0.6`
+            threshold: verificationResult.result?.threshold,
+            message: `Face doesn't match registered face. Distance: ${verificationResult.result?.distance?.toFixed(4) || 'unknown'}, Required: ${verificationResult.result?.threshold || 'unknown'}`
           });
         }
       } catch (error) {
