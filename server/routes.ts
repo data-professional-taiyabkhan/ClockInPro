@@ -740,14 +740,18 @@ export function registerRoutes(app: Express): Server {
       try {
         console.log(`Generating face embedding for employee ${employeeId}...`);
         
-        // Generate a basic face embedding from the image data
-        // This will be replaced by the frontend face-api.js descriptors during verification
-        const mockEmbedding = new Array(128).fill(0).map(() => Math.random() * 0.2);
+        // Generate embedding using the new face comparison utility
+        const { storeFaceEmbedding } = await import('./lib/faceCompare');
+        const embedding = await generateProbeEmbedding(imageData);
         
-        console.log(`Face embedding generated successfully for employee ${employeeId} - ${mockEmbedding.length} dimensions`);
+        // Store the normalized embedding
+        await storeFaceEmbedding(employeeId, embedding, imageData);
         
-        // Update employee with both face image and embedding
-        const updatedUser = await storage.updateUserFaceEmbedding(employeeId, imageData, mockEmbedding);
+        // Get updated user
+        const updatedUser = await storage.getUser(employeeId);
+        if (!updatedUser) {
+          throw new Error('Failed to retrieve updated user');
+        }
         
         const { password: _, ...safeUser } = updatedUser;
         res.json({
@@ -755,9 +759,9 @@ export function registerRoutes(app: Express): Server {
           user: safeUser,
           encoding_quality: {
             hasEncoding: true,
-            method: 'face_api_js_embedding',
-            dimensions: mockEmbedding.length,
-            note: 'Face embedding stored - will be updated during first face verification'
+            method: 'normalized_embedding',
+            dimensions: embedding.length,
+            note: 'Face embedding generated and normalized for accurate verification'
           }
         });
         
@@ -1041,15 +1045,19 @@ export function registerRoutes(app: Express): Server {
 
           res.json({
             verified: true,
+            distance: verificationResult.distance,
+            threshold: verificationResult.threshold,
             action: action || 'in',
             message: `Face verified successfully! You have been clocked ${action === 'out' ? 'out' : 'in'}.`,
             attendance: attendanceRecord
           });
         } else {
-          console.log(`Face verification failed for ${req.user.email}:`, comparisonResult.details);
+          console.log(`Face verification failed for ${req.user.email} - Distance: ${verificationResult.distance}, Threshold: ${verificationResult.threshold}`);
           res.status(400).json({
             verified: false,
-            message: `Face doesn't match! Please try again with better lighting and face the camera directly. (${comparisonResult.confidence.toFixed(1)}% confidence)`
+            distance: verificationResult.distance,
+            threshold: verificationResult.threshold,
+            message: `Face doesn't match registered face. Distance: ${verificationResult.distance.toFixed(4)}, Required: ${verificationResult.threshold}`
           });
         }
       } catch (error) {

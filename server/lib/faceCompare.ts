@@ -1,4 +1,4 @@
-import { storage } from '../storage';
+import { storage } from '../storage.js';
 
 /**
  * Calculate Euclidean distance between two face embeddings
