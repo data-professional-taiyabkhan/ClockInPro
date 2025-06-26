@@ -1270,7 +1270,8 @@ export function registerRoutes(app: Express): Server {
             attendance: attendanceRecord
           });
         } else {
-          console.log(`Face verification failed for ${req.user.email} - Distance: ${verificationResult.distance}, Threshold: ${verificationResult.threshold}`);
+          console.log(`✗ Face verification REJECTED for ${req.user.email} - Distance: ${verificationResult.distance}, Threshold: ${verificationResult.threshold}`);
+          console.log(`This is CORRECT behavior - different person attempting to access ${req.user.email}'s account`);
           res.status(400).json({
             verified: false,
             distance: verificationResult.distance,
