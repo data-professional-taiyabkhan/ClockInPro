@@ -839,7 +839,7 @@ export function registerRoutes(app: Express): Server {
         // Use reliable face recognition system
         const { spawn } = await import('child_process');
         const embedding = await new Promise<number[]>((resolve, reject) => {
-          const pythonProcess = spawn('python3', ['server/reliable_face_recognition.py', 'encode'], {
+          const pythonProcess = spawn('python3', ['server/secure_face_recognition.py', 'encode'], {
             stdio: ['pipe', 'pipe', 'pipe']
           });
           
@@ -1204,7 +1204,7 @@ export function registerRoutes(app: Express): Server {
         // Face comparison using reliable face recognition system
         const { spawn } = await import('child_process');
         const verificationResult = await new Promise<{ success: boolean; result?: { distance: number; is_match: boolean; tolerance: number }; error?: string }>((resolve, reject) => {
-          const pythonProcess = spawn('python3', ['server/reliable_face_recognition.py', 'compare'], {
+          const pythonProcess = spawn('python3', ['server/secure_face_recognition.py', 'compare'], {
             stdio: ['pipe', 'pipe', 'pipe']
           });
           
@@ -1240,7 +1240,7 @@ export function registerRoutes(app: Express): Server {
           const inputData = JSON.stringify({
             known_encoding: faceEmbedding,
             unknown_image: capturedImage,
-            tolerance: 0.8
+            tolerance: 0.2
           });
           pythonProcess.stdin.write(inputData);
           pythonProcess.stdin.end();
