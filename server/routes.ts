@@ -1216,7 +1216,22 @@ export function registerRoutes(app: Express): Server {
               try {
                 console.log('DeepFace output:', output);
                 console.log('DeepFace error output:', errorOutput);
-                const result = JSON.parse(output);
+                
+                // Extract JSON from output (DeepFace may have download messages mixed in)
+                const lines = output.split('\n');
+                let jsonLine = '';
+                for (const line of lines) {
+                  if (line.trim().startsWith('{') && line.trim().endsWith('}')) {
+                    jsonLine = line.trim();
+                    break;
+                  }
+                }
+                
+                if (!jsonLine) {
+                  throw new Error('No JSON found in output');
+                }
+                
+                const result = JSON.parse(jsonLine);
                 resolve(result);
               } catch (parseError) {
                 console.error('Failed to parse DeepFace response:', output);
