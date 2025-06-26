@@ -1240,7 +1240,7 @@ export function registerRoutes(app: Express): Server {
           const inputData = JSON.stringify({
             known_encoding: faceEmbedding,
             unknown_image: capturedImage,
-            tolerance: 0.6
+            tolerance: 0.65
           });
           pythonProcess.stdin.write(inputData);
           pythonProcess.stdin.end();
