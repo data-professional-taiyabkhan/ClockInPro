@@ -167,9 +167,16 @@ export class DatabaseStorage implements IStorage {
 
   // Location operations
   async createLocation(location: InsertLocation): Promise<Location> {
+    // Convert coordinates to strings as required by schema
+    const locationData = {
+      ...location,
+      latitude: location.latitude?.toString(),
+      longitude: location.longitude?.toString()
+    };
+    
     const [newLocation] = await db
       .insert(locations)
-      .values(location)
+      .values([locationData])
       .returning();
     return newLocation;
   }
@@ -297,12 +304,13 @@ export class DatabaseStorage implements IStorage {
         email: users.email,
         firstName: users.firstName,
         lastName: users.lastName,
+        password: users.password,
         role: users.role,
         faceImageUrl: users.faceImageUrl,
-        faceEncoding: users.faceEncoding,
-        faceConfidence: users.faceConfidence,
+        faceEmbedding: users.faceEmbedding,
         isActive: users.isActive,
         createdAt: users.createdAt,
+        updatedAt: users.updatedAt,
       })
       .from(employeeLocations)
       .innerJoin(users, eq(employeeLocations.userId, users.id))

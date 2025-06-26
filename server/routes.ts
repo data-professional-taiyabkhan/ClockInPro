@@ -979,7 +979,7 @@ export function registerRoutes(app: Express): Server {
             
             console.log(`Distance to ${assignedLocation.name}: ${distance}m (allowed: ${assignedLocation.radiusMeters}m)`);
             
-            if (distance <= assignedLocation.radiusMeters && distance < minDistance) {
+            if (distance <= (assignedLocation.radiusMeters || 100) && distance < minDistance) {
               minDistance = distance;
               closestLocation = assignedLocation;
             }
@@ -1068,7 +1068,6 @@ export function registerRoutes(app: Express): Server {
               userId: req.user.id,
               clockInTime: new Date(),
               date: new Date().toISOString().split('T')[0],
-              verified: true,
             });
           }
 
