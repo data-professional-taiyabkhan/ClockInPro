@@ -824,20 +824,11 @@ export function registerRoutes(app: Express): Server {
         return res.status(400).json({ message: "Invalid image data" });
       }
 
-      // Validate face image using computer vision
-      try {
-        const faceResult = await detectFaceInImage(imageData);
-        if (!faceResult.hasFace || faceResult.confidence < 35) {
-          return res.status(400).json({ 
-            message: faceResult.details.reason || "No face detected in image. Please ensure the photo shows a clear face.",
-            confidence: faceResult.confidence
-          });
-        }
-        console.log(`Face validation passed for employee ${employeeId} - Confidence: ${faceResult.confidence}%`);
-      } catch (error) {
-        console.log("Face validation error:", error.message);
+      // Basic image validation
+      const base64 = imageData.replace(/^data:image\/[a-z]+;base64,/, '');
+      if (base64.length < 1000) {
         return res.status(400).json({
-          message: "Failed to validate face image. Please try again with a clearer photo."
+          message: "Image appears to be too small or invalid"
         });
       }
 
@@ -1208,20 +1199,57 @@ export function registerRoutes(app: Express): Server {
         }
         
         console.log(`Stored encoding dimensions: ${faceEmbedding.length}`);
-        console.log(`Comparing captured image against stored face encoding`);
+        console.log(`Comparing captured image against stored face encoding using simple system`);
         
-        // Simple face comparison using face_recognition approach
-        const verificationResult = await compareFacesWithPython(faceEmbedding, capturedImage, 0.6);
+        // Simple face comparison using new simple face recognition system
+        const { spawn } = await import('child_process');
+        const verificationResult = await new Promise<{ success: boolean; distance: number; match: boolean; error?: string }>((resolve, reject) => {
+          const pythonProcess = spawn('python3', ['server/simple_face_recognition.py', 'compare'], {
+            stdio: ['pipe', 'pipe', 'pipe']
+          });
+          
+          let output = '';
+          let errorOutput = '';
+          
+          pythonProcess.stdout.on('data', (data) => {
+            output += data.toString();
+          });
+          
+          pythonProcess.stderr.on('data', (data) => {
+            errorOutput += data.toString();
+          });
+          
+          pythonProcess.on('close', (code) => {
+            if (code === 0) {
+              try {
+                const result = JSON.parse(output);
+                resolve(result);
+              } catch (parseError) {
+                reject(new Error(`Invalid response: ${output}`));
+              }
+            } else {
+              reject(new Error(`Face verification failed: ${errorOutput}`));
+            }
+          });
+          
+          const inputData = JSON.stringify({
+            known_encoding: faceEmbedding,
+            unknown_image: capturedImage,
+            tolerance: 0.6
+          });
+          pythonProcess.stdin.write(inputData);
+          pythonProcess.stdin.end();
+        });
         
-        console.log(`=== COMPARISON RESULT ===`);
+        console.log(`=== SIMPLE FACE VERIFICATION RESULT ===`);
         console.log(`User being verified: ${req.user.email}`);
         console.log(`Distance calculated: ${verificationResult.distance}`);
-        console.log(`Threshold: ${verificationResult.threshold}`);
-        console.log(`Verification result: ${verificationResult.verified ? 'PASS' : 'FAIL'}`);
-        console.log(`========================`);
+        console.log(`Threshold: 0.6`);
+        console.log(`Match result: ${verificationResult.match ? 'PASS' : 'FAIL'}`);
+        console.log(`=======================================`);
         
-        if (verificationResult.verified) {
-          console.log(`✓ Face verification successful for ${req.user.email} - Distance: ${verificationResult.distance}, Threshold: ${verificationResult.threshold}`);
+        if (verificationResult.match) {
+          console.log(`✓ Face verification successful for ${req.user.email} - Distance: ${verificationResult.distance}, Threshold: 0.6`);
           
           // Create attendance record based on action
           let attendanceRecord;
@@ -1252,19 +1280,19 @@ export function registerRoutes(app: Express): Server {
           res.json({
             verified: true,
             distance: verificationResult.distance,
-            threshold: verificationResult.threshold,
+            threshold: 0.6,
             action: action || 'in',
             message: `Face verified successfully! You have been clocked ${action === 'out' ? 'out' : 'in'}.`,
             attendance: attendanceRecord
           });
         } else {
-          console.log(`✗ Face verification REJECTED for ${req.user.email} - Distance: ${verificationResult.distance}, Threshold: ${verificationResult.threshold}`);
+          console.log(`✗ Face verification REJECTED for ${req.user.email} - Distance: ${verificationResult.distance}, Threshold: 0.6`);
           console.log(`This is CORRECT behavior - different person attempting to access ${req.user.email}'s account`);
           res.status(400).json({
             verified: false,
             distance: verificationResult.distance,
-            threshold: verificationResult.threshold,
-            message: `Face doesn't match registered face. Distance: ${verificationResult.distance.toFixed(4)}, Required: ${verificationResult.threshold}`
+            threshold: 0.6,
+            message: `Face doesn't match registered face. Distance: ${verificationResult.distance.toFixed(4)}, Required: 0.6`
           });
         }
       } catch (error) {
