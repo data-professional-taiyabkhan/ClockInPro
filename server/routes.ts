@@ -1621,37 +1621,55 @@ export function registerRoutes(app: Express): Server {
         return recordDate >= startDate && recordDate <= endDate;
       });
 
-      // Calculate daily breakdown
-      const dailyBreakdown = filteredRecords.map(record => {
-        let hoursWorked = 0;
-        let minutesWorked = 0;
-        let secondsWorked = 0;
-        
-        if (record.clockOutTime) {
-          const totalSeconds = differenceInSeconds(new Date(record.clockOutTime), new Date(record.clockInTime));
-          hoursWorked = Math.floor(totalSeconds / 3600);
-          minutesWorked = Math.floor((totalSeconds % 3600) / 60);
-          secondsWorked = totalSeconds % 60;
-        } else {
-          // Currently working
-          const totalSeconds = differenceInSeconds(new Date(), new Date(record.clockInTime));
-          hoursWorked = Math.floor(totalSeconds / 3600);
-          minutesWorked = Math.floor((totalSeconds % 3600) / 60);
-          secondsWorked = totalSeconds % 60;
+      // Group records by date and calculate daily totals
+      const dailyGroups = new Map<string, any[]>();
+      filteredRecords.forEach(record => {
+        const dateKey = record.date;
+        if (!dailyGroups.has(dateKey)) {
+          dailyGroups.set(dateKey, []);
         }
+        dailyGroups.get(dateKey)!.push(record);
+      });
+
+      // Calculate daily breakdown with proper grouping
+      const dailyBreakdown = Array.from(dailyGroups.entries()).map(([date, dayRecords]) => {
+        let totalDaySeconds = 0;
+        let isCurrentlyWorking = false;
+
+        dayRecords.forEach(record => {
+          if (record.clockOutTime) {
+            const sessionSeconds = differenceInSeconds(new Date(record.clockOutTime), new Date(record.clockInTime));
+            totalDaySeconds += sessionSeconds;
+          } else {
+            // Currently working session
+            isCurrentlyWorking = true;
+            const sessionSeconds = differenceInSeconds(new Date(), new Date(record.clockInTime));
+            totalDaySeconds += sessionSeconds;
+          }
+        });
+
+        const hoursWorked = Math.floor(totalDaySeconds / 3600);
+        const minutesWorked = Math.floor((totalDaySeconds % 3600) / 60);
+        const secondsWorked = totalDaySeconds % 60;
+        const totalHours = Math.round((hoursWorked + minutesWorked / 60 + secondsWorked / 3600) * 100) / 100;
 
         return {
-          ...record,
+          id: dayRecords[0].id,
+          date,
+          clockInTime: dayRecords[0].clockInTime,
+          clockOutTime: dayRecords[dayRecords.length - 1].clockOutTime,
           hoursWorked,
           minutesWorked,
           secondsWorked,
-          totalHours: Math.round((hoursWorked + minutesWorked / 60 + secondsWorked / 3600) * 100) / 100,
-          isCurrentlyWorking: !record.clockOutTime
+          totalHours,
+          isCurrentlyWorking,
+          sessionCount: dayRecords.length,
+          notes: dayRecords.map(r => r.notes).filter(Boolean).join('; ') || null
         };
       });
 
       // Calculate totals
-      const totalHours = dailyBreakdown.reduce((sum, record) => sum + record.totalHours, 0);
+      const totalHours = dailyBreakdown.reduce((sum, day) => sum + day.totalHours, 0);
       const totalMinutes = Math.floor((totalHours % 1) * 60);
       const totalWholeHours = Math.floor(totalHours);
       const totalSeconds = Math.floor(((totalHours % 1) * 60 % 1) * 60);
@@ -1713,47 +1731,70 @@ export function registerRoutes(app: Express): Server {
         return recordDate >= startDate && recordDate <= endDate;
       });
 
-      // Calculate daily breakdown with detailed time
-      const dailyBreakdown = filteredRecords.map(record => {
-        let hoursWorked = 0;
-        let minutesWorked = 0;
-        let secondsWorked = 0;
-        
-        if (record.clockOutTime) {
-          const totalSeconds = differenceInSeconds(new Date(record.clockOutTime), new Date(record.clockInTime));
-          hoursWorked = Math.floor(totalSeconds / 3600);
-          minutesWorked = Math.floor((totalSeconds % 3600) / 60);
-          secondsWorked = totalSeconds % 60;
-        } else {
-          // Currently working
-          const totalSeconds = differenceInSeconds(new Date(), new Date(record.clockInTime));
-          hoursWorked = Math.floor(totalSeconds / 3600);
-          minutesWorked = Math.floor((totalSeconds % 3600) / 60);
-          secondsWorked = totalSeconds % 60;
+      // Group records by date and calculate daily totals
+      const dailyGroups = new Map<string, any[]>();
+      filteredRecords.forEach(record => {
+        const dateKey = record.date;
+        if (!dailyGroups.has(dateKey)) {
+          dailyGroups.set(dateKey, []);
         }
+        dailyGroups.get(dateKey)!.push(record);
+      });
+
+      // Calculate daily breakdown with proper grouping
+      const dailyBreakdown = Array.from(dailyGroups.entries()).map(([date, dayRecords]) => {
+        let totalDaySeconds = 0;
+        let isCurrentlyWorking = false;
+        let clockInTimes: string[] = [];
+        let clockOutTimes: string[] = [];
+
+        dayRecords.forEach(record => {
+          clockInTimes.push(format(new Date(record.clockInTime), 'HH:mm:ss'));
+          
+          if (record.clockOutTime) {
+            clockOutTimes.push(format(new Date(record.clockOutTime), 'HH:mm:ss'));
+            const sessionSeconds = differenceInSeconds(new Date(record.clockOutTime), new Date(record.clockInTime));
+            totalDaySeconds += sessionSeconds;
+          } else {
+            // Currently working session
+            isCurrentlyWorking = true;
+            const sessionSeconds = differenceInSeconds(new Date(), new Date(record.clockInTime));
+            totalDaySeconds += sessionSeconds;
+          }
+        });
+
+        const hoursWorked = Math.floor(totalDaySeconds / 3600);
+        const minutesWorked = Math.floor((totalDaySeconds % 3600) / 60);
+        const secondsWorked = totalDaySeconds % 60;
+        const totalHours = Math.round((hoursWorked + minutesWorked / 60 + secondsWorked / 3600) * 100) / 100;
 
         return {
-          ...record,
+          id: dayRecords[0].id,
+          date,
+          clockInTime: dayRecords[0].clockInTime,
+          clockOutTime: dayRecords[dayRecords.length - 1].clockOutTime,
           hoursWorked,
           minutesWorked,
           secondsWorked,
-          totalHours: Math.round((hoursWorked + minutesWorked / 60 + secondsWorked / 3600) * 100) / 100,
-          isCurrentlyWorking: !record.clockOutTime,
-          clockInFormatted: format(new Date(record.clockInTime), 'HH:mm:ss'),
-          clockOutFormatted: record.clockOutTime ? format(new Date(record.clockOutTime), 'HH:mm:ss') : null,
-          dateFormatted: format(new Date(record.date), 'MMM dd, yyyy')
+          totalHours,
+          isCurrentlyWorking,
+          clockInFormatted: clockInTimes.join(', '),
+          clockOutFormatted: clockOutTimes.length > 0 ? clockOutTimes.join(', ') : null,
+          dateFormatted: format(new Date(date), 'MMM dd, yyyy'),
+          sessionCount: dayRecords.length,
+          notes: dayRecords.map(r => r.notes).filter(Boolean).join('; ') || null
         };
       });
 
       // Calculate totals
-      const totalHours = dailyBreakdown.reduce((sum, record) => sum + record.totalHours, 0);
+      const totalHours = dailyBreakdown.reduce((sum, day) => sum + day.totalHours, 0);
       const totalMinutes = Math.floor((totalHours % 1) * 60);
       const totalWholeHours = Math.floor(totalHours);
       const totalSeconds = Math.floor(((totalHours % 1) * 60 % 1) * 60);
 
       // Check if currently working
       const today = format(new Date(), "yyyy-MM-dd");
-      const todayRecord = dailyBreakdown.find(record => record.date === today && !record.clockOutTime);
+      const todayRecord = dailyBreakdown.find(record => record.date === today && record.isCurrentlyWorking);
 
       res.json({
         period,
