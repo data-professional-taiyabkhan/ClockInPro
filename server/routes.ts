@@ -832,14 +832,14 @@ export function registerRoutes(app: Express): Server {
         });
       }
 
-      // Generate face embedding using simple face_recognition approach
+      // Store face image for DeepFace comparison (no encoding needed)
       try {
-        console.log(`Generating face embedding for employee ${employeeId}...`);
+        console.log(`Storing face image for employee ${employeeId} using DeepFace...`);
         
-        // Use reliable face recognition system
+        // With DeepFace, we store the image directly and compare images during verification
         const { spawn } = await import('child_process');
-        const embedding = await new Promise<number[]>((resolve, reject) => {
-          const pythonProcess = spawn('python3', ['server/secure_face_recognition.py', 'encode'], {
+        const result = await new Promise<{ success: boolean; image_data?: string; error?: string }>((resolve, reject) => {
+          const pythonProcess = spawn('python3', ['server/deepface_recognition.py', 'store'], {
             stdio: ['pipe', 'pipe', 'pipe']
           });
           
@@ -858,16 +858,12 @@ export function registerRoutes(app: Express): Server {
             if (code === 0) {
               try {
                 const result = JSON.parse(output);
-                if (result.success && result.encoding) {
-                  resolve(result.encoding);
-                } else {
-                  reject(new Error(result.error || 'Encoding generation failed'));
-                }
+                resolve(result);
               } catch (parseError) {
                 reject(new Error(`Invalid response: ${output}`));
               }
             } else {
-              reject(new Error(`Face recognition failed: ${errorOutput}`));
+              reject(new Error(`Face storage failed: ${errorOutput}`));
             }
           });
           
@@ -876,8 +872,12 @@ export function registerRoutes(app: Express): Server {
           pythonProcess.stdin.end();
         });
         
-        // Store the face embedding directly in database
-        await storage.updateUserFaceEmbedding(employeeId, imageData, embedding);
+        if (!result.success) {
+          throw new Error(result.error || 'Face image storage failed');
+        }
+        
+        // Store the face image directly (no embedding for DeepFace)
+        await storage.updateUserFaceImage(employeeId, result.image_data!);
         
         // Get updated user
         const updatedUser = await storage.getUser(employeeId);
@@ -887,13 +887,13 @@ export function registerRoutes(app: Express): Server {
         
         const { password: _, ...safeUser } = updatedUser;
         res.json({
-          message: "Employee face image and embedding updated successfully",
+          message: "Employee face image updated successfully for DeepFace verification",
           user: safeUser,
-          encoding_quality: {
-            hasEncoding: true,
-            method: 'simple_face_recognition',
-            dimensions: embedding.length,
-            note: 'Face encoding generated using simple OpenCV system'
+          verification_method: {
+            hasImage: true,
+            method: 'DeepFace',
+            model: 'Facenet',
+            note: 'Face image stored for direct comparison using DeepFace'
           }
         });
         
@@ -1190,21 +1190,21 @@ export function registerRoutes(app: Express): Server {
           });
         }
         
-        // Parse face embedding if it's stored as string
-        let faceEmbedding: number[];
-        if (typeof req.user.faceEmbedding === 'string') {
-          faceEmbedding = JSON.parse(req.user.faceEmbedding);
-        } else {
-          faceEmbedding = req.user.faceEmbedding as number[];
+        // Check if user has registered face image
+        const registeredFaceImage = req.user.faceImageUrl;
+        if (!registeredFaceImage) {
+          return res.status(400).json({
+            verified: false,
+            message: "No face profile found. Please ask your manager to upload your face image first."
+          });
         }
         
-        console.log(`Stored encoding dimensions: ${faceEmbedding.length}`);
-        console.log(`Comparing captured image against stored face encoding using simple system`);
+        console.log(`Comparing captured image against registered face image using DeepFace`);
         
-        // Face comparison using reliable face recognition system
+        // Face comparison using DeepFace
         const { spawn } = await import('child_process');
-        const verificationResult = await new Promise<{ success: boolean; result?: { distance: number; is_match: boolean; tolerance: number }; error?: string }>((resolve, reject) => {
-          const pythonProcess = spawn('python3', ['server/secure_face_recognition.py', 'compare'], {
+        const verificationResult = await new Promise<{ success: boolean; result?: { verified: boolean; distance: number; threshold: number; model: string }; error?: string }>((resolve, reject) => {
+          const pythonProcess = spawn('python3', ['server/deepface_recognition.py', 'verify'], {
             stdio: ['pipe', 'pipe', 'pipe']
           });
           
@@ -1222,25 +1222,24 @@ export function registerRoutes(app: Express): Server {
           pythonProcess.on('close', (code) => {
             if (code === 0) {
               try {
-                console.log('Python script output:', output);
-                console.log('Python script error output:', errorOutput);
+                console.log('DeepFace output:', output);
+                console.log('DeepFace error output:', errorOutput);
                 const result = JSON.parse(output);
                 resolve(result);
               } catch (parseError) {
-                console.error('Failed to parse Python response:', output);
+                console.error('Failed to parse DeepFace response:', output);
                 reject(new Error(`Invalid response: ${output}`));
               }
             } else {
-              console.error('Python script failed with code:', code);
+              console.error('DeepFace failed with code:', code);
               console.error('Error output:', errorOutput);
               reject(new Error(`Face verification failed: ${errorOutput}`));
             }
           });
           
           const inputData = JSON.stringify({
-            known_encoding: faceEmbedding,
-            unknown_image: capturedImage,
-            tolerance: 0.2
+            registered_image: registeredFaceImage,
+            captured_image: capturedImage
           });
           pythonProcess.stdin.write(inputData);
           pythonProcess.stdin.end();
