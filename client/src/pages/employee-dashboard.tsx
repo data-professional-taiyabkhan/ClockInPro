@@ -312,7 +312,7 @@ export default function EmployeeDashboard() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4">
-      <div className="max-w-4xl mx-auto space-y-6">
+      <div className="max-w-6xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex justify-between items-center">
           <div>
@@ -331,34 +331,47 @@ export default function EmployeeDashboard() {
           </Button>
         </div>
 
-        {/* Face Registration Status */}
-        {!user.faceImageUrl && (
-          <Alert>
-            <Camera className="h-4 w-4" />
-            <AlertDescription>
-              Your face image hasn't been registered yet. Please contact your manager to set up your face image for check-in.
-            </AlertDescription>
-          </Alert>
-        )}
-        
-        {user.faceImageUrl ? (
-          <Alert>
-            <Camera className="h-4 w-4" />
-            <AlertDescription>
-              Face image registered successfully. You can now use face check-in.
-              <div className="mt-2">
-                <img 
-                  src={user.faceImageUrl} 
-                  alt="Your registered face"
-                  className="w-16 h-16 rounded-full object-cover border"
-                />
-              </div>
-            </AlertDescription>
-          </Alert>
-        ) : null}
+        <Tabs defaultValue="attendance" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="attendance" className="flex items-center gap-2">
+              <Clock className="h-4 w-4" />
+              Attendance
+            </TabsTrigger>
+            <TabsTrigger value="analytics" className="flex items-center gap-2">
+              <BarChart3 className="h-4 w-4" />
+              My Hours
+            </TabsTrigger>
+          </TabsList>
 
-        {/* Today's Status */}
-        <Card>
+          <TabsContent value="attendance" className="space-y-6">
+            {/* Face Registration Status */}
+            {!user.faceImageUrl && (
+              <Alert>
+                <Camera className="h-4 w-4" />
+                <AlertDescription>
+                  Your face image hasn't been registered yet. Please contact your manager to set up your face image for check-in.
+                </AlertDescription>
+              </Alert>
+            )}
+            
+            {user.faceImageUrl ? (
+              <Alert>
+                <Camera className="h-4 w-4" />
+                <AlertDescription>
+                  Face image registered successfully. You can now use face check-in.
+                  <div className="mt-2">
+                    <img 
+                      src={user.faceImageUrl} 
+                      alt="Your registered face"
+                      className="w-16 h-16 rounded-full object-cover border"
+                    />
+                  </div>
+                </AlertDescription>
+              </Alert>
+            ) : null}
+
+            {/* Today's Status */}
+            <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Clock className="h-5 w-5" />
@@ -530,8 +543,14 @@ export default function EmployeeDashboard() {
           </CardContent>
         </Card>
 
-        {/* Hidden canvas for image capture */}
-        <canvas ref={canvasRef} className="hidden" />
+            {/* Hidden canvas for image capture */}
+            <canvas ref={canvasRef} className="hidden" />
+          </TabsContent>
+
+          <TabsContent value="analytics">
+            <EmployeeAnalyticsDashboard />
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );
