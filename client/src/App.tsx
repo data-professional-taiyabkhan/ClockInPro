@@ -35,11 +35,20 @@ function Router() {
         </>
       ) : (
         <>
-          <Route path="/" component={
-            (user as any)?.role === "employee" ? EmployeeDashboard : 
-            (user as any)?.role === "admin" ? AdminDashboard : 
-            ManagerDashboard
-          } />
+          <Route path="/" component={() => {
+            const userRole = (user as any)?.role;
+            console.log("User role detected:", userRole);
+            
+            if (userRole === "employee") {
+              return <EmployeeDashboard />;
+            } else if (userRole === "admin") {
+              return <AdminDashboard />;
+            } else if (userRole === "manager") {
+              return <ManagerDashboard />;
+            } else {
+              return <ManagerDashboard />; // Default fallback
+            }
+          }} />
         </>
       )}
       <Route component={NotFound} />
