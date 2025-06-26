@@ -101,6 +101,47 @@ export default function AdminDashboard() {
     },
   });
 
+  const updateFaceMutation = useMutation({
+    mutationFn: async ({ employeeId, imageData }: { employeeId: number; imageData: string }) => {
+      return await apiRequest(`/api/employees/${employeeId}/face-image`, {
+        method: "POST",
+        body: JSON.stringify({ imageData }),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/employees"] });
+      toast({
+        title: "Success",
+        description: "Employee face image updated successfully",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleUpdateFace = (employeeId: number) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.onchange = (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const imageData = event.target?.result as string;
+          updateFaceMutation.mutate({ employeeId, imageData });
+        };
+        reader.readAsDataURL(file);
+      }
+    };
+    input.click();
+  };
+
   const createLocationMutation = useMutation({
     mutationFn: async (data: InsertLocation) => {
       return await apiRequest("/api/locations", { method: "POST", body: data });
@@ -445,9 +486,14 @@ export default function AdminDashboard() {
                             </TableCell>
                             <TableCell>
                               <div className="flex gap-2">
-                                <Button variant="outline" size="sm">
+                                <Button 
+                                  variant="outline" 
+                                  size="sm"
+                                  onClick={() => handleUpdateFace(employee.id)}
+                                  disabled={updateFaceMutation.isPending}
+                                >
                                   <Upload className="h-4 w-4" />
-                                  Update Face
+                                  {updateFaceMutation.isPending ? "Updating..." : "Update Face"}
                                 </Button>
                               </div>
                             </TableCell>
