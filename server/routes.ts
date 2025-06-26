@@ -1182,20 +1182,12 @@ export function registerRoutes(app: Express): Server {
       try {
         const capturedImage = imageData;
         
-        // Check if user has stored face encoding
-        if (!req.user.faceEmbedding) {
-          return res.status(400).json({
-            verified: false,
-            message: "No face template found for your account. Please contact your manager to register your face."
-          });
-        }
-        
-        // Check if user has registered face image
+        // Check if user has registered face image (DeepFace stores images directly)
         const registeredFaceImage = req.user.faceImageUrl;
         if (!registeredFaceImage) {
           return res.status(400).json({
             verified: false,
-            message: "No face profile found. Please ask your manager to upload your face image first."
+            message: "No face template found for your account. Please contact your manager to register your face."
           });
         }
         
