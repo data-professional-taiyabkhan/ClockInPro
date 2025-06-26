@@ -43,12 +43,31 @@ def detect_face_robust(image):
     # Method 1: Haar cascade (most reliable for basic face detection)
     face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
     
-    # Try multiple parameters for better detection
-    faces = face_cascade.detectMultiScale(gray, 1.1, 5, minSize=(50, 50))
+    # Try multiple parameters for better detection - more aggressive detection
+    detection_params = [
+        (1.1, 3, (20, 20)),  # More sensitive detection
+        (1.05, 5, (15, 15)), # Very sensitive
+        (1.3, 2, (25, 25)),  # Less sensitive but different scale
+        (1.1, 4, (10, 10)),  # Very small faces
+        (1.2, 3, (30, 30)),  # Medium faces
+        (1.15, 4, (20, 20)), # Balanced
+    ]
+    
+    faces = []
+    for scale_factor, min_neighbors, min_size in detection_params:
+        faces = face_cascade.detectMultiScale(gray, scale_factor, min_neighbors, minSize=min_size)
+        if len(faces) > 0:
+            break
+    
+    # Try profile face detection if frontal failed
     if len(faces) == 0:
-        faces = face_cascade.detectMultiScale(gray, 1.3, 3, minSize=(30, 30))
+        profile_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_profileface.xml')
+        faces = profile_cascade.detectMultiScale(gray, 1.1, 3, minSize=(20, 20))
+    
+    # Try alternative face detection method
     if len(faces) == 0:
-        faces = face_cascade.detectMultiScale(gray, 1.05, 7, minSize=(40, 40))
+        alt_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_alt.xml')
+        faces = alt_cascade.detectMultiScale(gray, 1.1, 3, minSize=(20, 20))
     
     if len(faces) == 0:
         raise Exception("No face detected in image - please ensure your face is clearly visible and well-lit")
