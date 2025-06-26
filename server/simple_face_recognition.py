@@ -45,12 +45,18 @@ def encode_face(image_data):
         # Convert to grayscale for face detection
         gray = cv2.cvtColor(rgb_image, cv2.COLOR_RGB2GRAY)
         
-        # Detect face using OpenCV
+        # Detect face using OpenCV with multiple detection attempts
         face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
-        faces = face_cascade.detectMultiScale(gray, 1.3, 5)
+        
+        # Try multiple scale factors for better detection
+        faces = face_cascade.detectMultiScale(gray, 1.1, 3, minSize=(30, 30))
+        if len(faces) == 0:
+            faces = face_cascade.detectMultiScale(gray, 1.3, 5, minSize=(20, 20))
+        if len(faces) == 0:
+            faces = face_cascade.detectMultiScale(gray, 1.05, 2, minSize=(15, 15))
         
         if len(faces) == 0:
-            raise Exception("No face detected in image")
+            raise Exception("No face detected in image - please ensure your face is clearly visible and well-lit")
         
         # Get the largest face
         face = max(faces, key=lambda f: f[2] * f[3])
@@ -90,8 +96,8 @@ def compare_faces_simple(known_encoding, unknown_image_data, tolerance=0.6):
         
         return {
             "distance": float(distance),
-            "is_match": is_match,
-            "tolerance": tolerance
+            "is_match": bool(is_match),
+            "tolerance": float(tolerance)
         }
         
     except Exception as e:
