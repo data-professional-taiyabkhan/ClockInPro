@@ -141,29 +141,7 @@ export default function EmployeeDashboard() {
     },
   });
 
-  // Face re-registration mutation
-  const updateFaceMutation = useMutation({
-    mutationFn: async (imageData: string) => {
-      return await apiRequest(`/api/employees/${user?.id}/face-image`, {
-        method: "POST",
-        body: JSON.stringify({ imageData }),
-      });
-    },
-    onSuccess: () => {
-      toast({
-        title: "Success",
-        description: "Face updated successfully! You can now use face recognition for check-in.",
-      });
-      queryClient.invalidateQueries({ queryKey: ["/api/user"] });
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
+
 
   // Clock in mutation
   const clockInMutation = useMutation({
@@ -227,23 +205,7 @@ export default function EmployeeDashboard() {
     },
   });
 
-  const handleUpdateFace = () => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'image/*';
-    input.onchange = (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0];
-      if (file) {
-        const reader = new FileReader();
-        reader.onload = (event) => {
-          const imageData = event.target?.result as string;
-          updateFaceMutation.mutate(imageData);
-        };
-        reader.readAsDataURL(file);
-      }
-    };
-    input.click();
-  };
+
 
   const startCamera = async () => {
     try {
@@ -445,15 +407,7 @@ export default function EmployeeDashboard() {
                         Start Face Check-In
                       </Button>
                       
-                      <Button 
-                        onClick={handleUpdateFace}
-                        variant="outline"
-                        className="w-full"
-                        disabled={updateFaceMutation.isPending}
-                      >
-                        <Upload className="h-4 w-4 mr-2" />
-                        {updateFaceMutation.isPending ? "Updating..." : "Update Face Image"}
-                      </Button>
+
 
                     </div>
                   )}

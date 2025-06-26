@@ -98,6 +98,29 @@ export default function ManagerDashboard() {
     },
   });
 
+  const updateFaceMutation = useMutation({
+    mutationFn: async ({ employeeId, imageData }: { employeeId: number; imageData: string }) => {
+      return await apiRequest(`/api/employees/${employeeId}/face-image`, {
+        method: "POST",
+        body: JSON.stringify({ imageData }),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/employees"] });
+      toast({
+        title: "Success",
+        description: "Employee face image updated successfully",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const logoutMutation = useMutation({
     mutationFn: async () => {
       return await apiRequest("/api/logout", { method: "POST" });
@@ -107,6 +130,24 @@ export default function ManagerDashboard() {
       window.location.href = "/";
     },
   });
+
+  const handleUpdateFace = (employeeId: number) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.onchange = (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const imageData = event.target?.result as string;
+          updateFaceMutation.mutate({ employeeId, imageData });
+        };
+        reader.readAsDataURL(file);
+      }
+    };
+    input.click();
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
@@ -386,16 +427,39 @@ export default function ManagerDashboard() {
                               </div>
                             )}
 
-                            {/* Show face image if available */}
-                            {employee.faceImageUrl && (
-                              <div className="mt-3 pt-3 border-t">
-                                <img 
-                                  src={employee.faceImageUrl} 
-                                  alt="Employee face"
-                                  className="w-16 h-16 rounded-full object-cover border"
-                                />
+                            {/* Face Image and Update Button */}
+                            <div className="mt-3 pt-3 border-t">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                  {employee.faceImageUrl ? (
+                                    <img 
+                                      src={employee.faceImageUrl} 
+                                      alt="Employee face"
+                                      className="w-12 h-12 rounded-full object-cover border"
+                                    />
+                                  ) : (
+                                    <div className="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center">
+                                      <Users className="w-6 h-6 text-gray-400" />
+                                    </div>
+                                  )}
+                                  <div>
+                                    <p className="text-xs font-medium">Face Image</p>
+                                    <p className="text-xs text-gray-500">
+                                      {employee.faceImageUrl ? 'Registered' : 'Not set'}
+                                    </p>
+                                  </div>
+                                </div>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleUpdateFace(employee.id)}
+                                  disabled={updateFaceMutation.isPending}
+                                >
+                                  <Upload className="w-3 h-3 mr-1" />
+                                  {employee.faceImageUrl ? 'Update' : 'Add'}
+                                </Button>
                               </div>
-                            )}
+                            </div>
                           </div>
                         );
                       })}
