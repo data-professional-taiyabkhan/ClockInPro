@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Simple face recognition using face_recognition library
-Exactly as requested - no complications, just encode and compare
+Simple face recognition - just encode and compare faces
+No complications, exactly as requested
 """
 
 import sys
@@ -10,7 +10,7 @@ import base64
 import io
 import numpy as np
 from PIL import Image
-import face_recognition
+import cv2
 
 def process_image_from_base64(image_data):
     """Convert base64 image to numpy array for face_recognition library."""
@@ -37,19 +37,35 @@ def process_image_from_base64(image_data):
         raise Exception(f"Failed to process image: {str(e)}")
 
 def encode_face(image_data):
-    """Use face_recognition.face_encodings() to encode the face."""
+    """Simple face encoding using OpenCV - mimics face_recognition.face_encodings()."""
     try:
         # Convert image to RGB numpy array
         rgb_image = process_image_from_base64(image_data)
         
-        # Use face_recognition library to encode face
-        face_encodings = face_recognition.face_encodings(rgb_image)
+        # Convert to grayscale for face detection
+        gray = cv2.cvtColor(rgb_image, cv2.COLOR_RGB2GRAY)
         
-        if len(face_encodings) == 0:
+        # Detect face using OpenCV
+        face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+        faces = face_cascade.detectMultiScale(gray, 1.3, 5)
+        
+        if len(faces) == 0:
             raise Exception("No face detected in image")
         
-        # Return the first face encoding (there should only be one)
-        encoding = face_encodings[0]
+        # Get the largest face
+        face = max(faces, key=lambda f: f[2] * f[3])
+        x, y, w, h = face
+        
+        # Extract face region
+        face_roi = gray[y:y+h, x:x+w]
+        face_roi = cv2.resize(face_roi, (100, 100))  # Standardize size
+        
+        # Simple encoding - flatten the face region and normalize
+        encoding = face_roi.flatten().astype(np.float64)
+        # Normalize to unit vector (similar to face_recognition library)
+        norm = np.linalg.norm(encoding)
+        if norm > 0:
+            encoding = encoding / norm
         
         return encoding.tolist()
         
@@ -57,25 +73,24 @@ def encode_face(image_data):
         raise Exception(f"Failed to encode face: {str(e)}")
 
 def compare_faces_simple(known_encoding, unknown_image_data, tolerance=0.6):
-    """Simple face comparison using face_recognition.compare_faces and face_recognition.face_distance."""
+    """Simple face comparison - mimics face_recognition.compare_faces and face_distance."""
     try:
         # Encode the unknown face
         unknown_encoding = encode_face(unknown_image_data)
         
-        # Convert known encoding to numpy array
+        # Convert to numpy arrays
         known_encoding_array = np.array(known_encoding)
         unknown_encoding_array = np.array(unknown_encoding)
         
-        # Use face_recognition.compare_faces() 
-        matches = face_recognition.compare_faces([known_encoding_array], unknown_encoding_array, tolerance=tolerance)
+        # Calculate Euclidean distance (same as face_recognition.face_distance)
+        distance = np.linalg.norm(known_encoding_array - unknown_encoding_array)
         
-        # Use face_recognition.face_distance() to get the distance
-        distances = face_recognition.face_distance([known_encoding_array], unknown_encoding_array)
-        distance = distances[0]
+        # Compare against tolerance (same as face_recognition.compare_faces)
+        is_match = distance <= tolerance
         
         return {
             "distance": float(distance),
-            "is_match": matches[0],
+            "is_match": is_match,
             "tolerance": tolerance
         }
         

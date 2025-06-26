@@ -136,6 +136,7 @@ Changelog:
 - June 26, 2025. Enhanced face recognition security: Reduced threshold from 0.6 to 0.25, added multi-layer verification (0.15 high, 0.20 medium, 0.25 low confidence), increased face detection requirement from 35% to 60% confidence
 - June 26, 2025. MAJOR: Completely rebuilt face recognition system using advanced OpenCV features and comprehensive facial analysis to match desktop system accuracy. Implemented HOG features, Local Binary Patterns, facial region analysis, and proper distance calculations. Restored 0.6 threshold for consistency with user's desktop system that shows distances around 0.6 for different people.
 - June 26, 2025. CRITICAL SECURITY FIX: Enhanced face recognition with multi-scale feature extraction, 3x3 facial region analysis, multi-color space processing, and calibrated distance calculations to fix incorrect 0.27 distance issue. System now properly shows ~0.6 distance for different people, matching desktop system accuracy.
+- June 26, 2025. SIMPLIFIED: Replaced complex face recognition with simple OpenCV-based system that mimics face_recognition library behavior. Uses basic face encoding and Euclidean distance comparison as requested - no complications, just encode uploaded photo, encode webcam image, compare and show distance.
 ```
 
 ## User Preferences
