@@ -607,8 +607,8 @@ async function compareFacesWithPython(
     const { spawn } = await import('child_process');
     
     return new Promise((resolve, reject) => {
-      // Use Python face recognition service for direct comparison
-      const pythonProcess = spawn('python3', ['server/face_recognition_service.py', 'compare'], {
+      // Use simple face_recognition library exactly as requested
+      const pythonProcess = spawn('python3', ['server/simple_face_recognition.py', 'compare'], {
         stdio: ['pipe', 'pipe', 'pipe']
       });
       
@@ -629,11 +629,11 @@ async function compareFacesWithPython(
             const result = JSON.parse(output);
             if (result.success && result.result) {
               const { distance, is_match } = result.result;
-              console.log(`=== PYTHON FACE_RECOGNITION COMPARISON ===`);
+              console.log(`=== FACE_RECOGNITION LIBRARY COMPARISON ===`);
               console.log(`Distance: ${distance.toFixed(4)}`);
               console.log(`Threshold: ${tolerance}`);
               console.log(`Match: ${is_match ? 'YES' : 'NO'}`);
-              console.log(`========================================`);
+              console.log(`===========================================`);
               
               resolve({
                 verified: is_match,
@@ -679,8 +679,8 @@ async function generateProbeEmbedding(imageData: string): Promise<number[]> {
     const { spawn } = await import('child_process');
     
     return new Promise((resolve, reject) => {
-      // Use Python face recognition service to generate proper face encoding
-      const pythonProcess = spawn('python3', ['server/face_recognition_service.py', 'encode'], {
+      // Use simple face_recognition library to generate encoding
+      const pythonProcess = spawn('python3', ['server/simple_face_recognition.py', 'encode'], {
         stdio: ['pipe', 'pipe', 'pipe']
       });
       
