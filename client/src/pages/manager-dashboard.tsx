@@ -21,6 +21,13 @@ export default function ManagerDashboard() {
   const queryClient = useQueryClient();
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<number | null>(null);
   const [selectedLocationId, setSelectedLocationId] = useState<number | null>(null);
+  const [isAddEmployeeOpen, setIsAddEmployeeOpen] = useState(false);
+  const [newEmployee, setNewEmployee] = useState({
+    firstName: '',
+    lastName: '',
+    email: '',
+    role: 'employee'
+  });
 
   const { data: user } = useQuery({
     queryKey: ["/api/user"],
@@ -129,6 +136,42 @@ export default function ManagerDashboard() {
     onSuccess: () => {
       queryClient.clear();
       window.location.href = "/";
+    },
+  });
+
+  const createEmployeeMutation = useMutation({
+    mutationFn: async (employeeData: {
+      firstName: string;
+      lastName: string;
+      email: string;
+      role: string;
+    }) => {
+      return await apiRequest("/api/invitations", {
+        method: "POST",
+        body: JSON.stringify(employeeData),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/invitations"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/employees"] });
+      setIsAddEmployeeOpen(false);
+      setNewEmployee({
+        firstName: '',
+        lastName: '',
+        email: '',
+        role: 'employee'
+      });
+      toast({
+        title: "Success",
+        description: "Employee invitation sent successfully",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
     },
   });
 
@@ -337,13 +380,91 @@ export default function ManagerDashboard() {
           <TabsContent value="employees">
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Users className="w-5 h-5" />
-                  Employee Management
-                </CardTitle>
-                <CardDescription>
-                  Manage employee accounts and face recognition
-                </CardDescription>
+                <div className="flex justify-between items-start">
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      <Users className="w-5 h-5" />
+                      Employee Management
+                    </CardTitle>
+                    <CardDescription>
+                      Manage employee accounts and face recognition
+                    </CardDescription>
+                  </div>
+                  <Dialog open={isAddEmployeeOpen} onOpenChange={setIsAddEmployeeOpen}>
+                    <DialogTrigger asChild>
+                      <Button className="flex items-center gap-2">
+                        <UserPlus className="w-4 h-4" />
+                        Add Employee
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="sm:max-w-md">
+                      <DialogHeader>
+                        <DialogTitle>Add New Employee</DialogTitle>
+                        <DialogDescription>
+                          Create a new employee account. An invitation will be sent to their email.
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <Label htmlFor="firstName">First Name</Label>
+                            <Input 
+                              id="firstName" 
+                              placeholder="Enter first name"
+                              value={newEmployee.firstName}
+                              onChange={(e) => setNewEmployee(prev => ({ ...prev, firstName: e.target.value }))}
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="lastName">Last Name</Label>
+                            <Input 
+                              id="lastName" 
+                              placeholder="Enter last name"
+                              value={newEmployee.lastName}
+                              onChange={(e) => setNewEmployee(prev => ({ ...prev, lastName: e.target.value }))}
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <Label htmlFor="email">Email Address</Label>
+                          <Input 
+                            id="email" 
+                            type="email" 
+                            placeholder="employee@company.com"
+                            value={newEmployee.email}
+                            onChange={(e) => setNewEmployee(prev => ({ ...prev, email: e.target.value }))}
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="role">Role</Label>
+                          <Select 
+                            value={newEmployee.role} 
+                            onValueChange={(value) => setNewEmployee(prev => ({ ...prev, role: value }))}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select role" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="employee">Employee</SelectItem>
+                              <SelectItem value="manager">Manager</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="flex justify-end gap-2">
+                          <Button variant="outline" onClick={() => setIsAddEmployeeOpen(false)}>
+                            Cancel
+                          </Button>
+                          <Button 
+                            onClick={() => createEmployeeMutation.mutate(newEmployee)}
+                            disabled={createEmployeeMutation.isPending || !newEmployee.firstName || !newEmployee.lastName || !newEmployee.email}
+                          >
+                            {createEmployeeMutation.isPending ? "Creating..." : "Create Employee"}
+                          </Button>
+                        </div>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                </div>
               </CardHeader>
               <CardContent>
                 {employeesLoading ? (
