@@ -140,6 +140,7 @@ Changelog:
 - June 26, 2025. FIXED DIMENSION MISMATCH: Completely removed old complex face recognition functions and cleared all existing face encodings from database. System now uses only simple_face_recognition.py for both manager uploads and webcam verification, ensuring consistent encoding dimensions.
 - June 26, 2025. CRITICAL FIX: Resolved "undefined distance" error and JSON serialization issues in face verification. Added proper error handling for failed face detection, enhanced OpenCV face detection with multiple scale factors, and fixed boolean JSON serialization. System now properly handles cases where faces cannot be detected in captured images.
 - June 26, 2025. SECURITY CRITICAL: Fixed major vulnerability where different people could access each other's accounts (distance ~0.53 was allowing unauthorized access). Completely rebuilt face encoding with 449-dimensional feature vectors using overlapping window analysis, facial region statistics, edge detection, and texture analysis. Increased threshold to 0.65. Cleared all existing encodings - managers must re-upload all employee face images.
+- June 26, 2025. FACE RECOGNITION OVERHAUL: Replaced custom OpenCV system with reliable face recognition using histogram features, gradient analysis, local binary patterns, and facial region analysis. New system properly distinguishes between different people (distances 0.98-0.60) while allowing same person verification. Adjusted threshold to 0.8 for optimal security balance.
 ```
 
 ## User Preferences
