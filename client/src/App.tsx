@@ -5,6 +5,7 @@ import LoginPage from "@/pages/login-page";
 import EmployeeDashboard from "@/pages/employee-dashboard";
 import ManagerDashboard from "@/pages/manager-dashboard";
 import AdminDashboard from "@/pages/admin-dashboard";
+import SecurityTestPage from "@/pages/security-test";
 import NotFound from "@/pages/not-found";
 import { useQuery } from "@tanstack/react-query";
 
@@ -26,6 +27,7 @@ function Router() {
 
   return (
     <Switch>
+      <Route path="/security-test" component={SecurityTestPage} />
       {!user ? (
         <>
           <Route path="/" component={LoginPage} />
