@@ -6,7 +6,7 @@ import { insertAttendanceRecordSchema, insertLocationSchema, loginSchema, regist
 import { desc, eq, and } from "drizzle-orm";
 import { db } from "./db";
 import crypto from "crypto";
-import { format, differenceInMinutes } from "date-fns";
+import { format, differenceInMinutes, differenceInSeconds, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subMonths } from "date-fns";
 
 const UK_POSTCODE_REGEX = /^[A-Z]{1,2}\d[A-Z\d]?\s?\d[A-Z]{2}$/i;
 
@@ -1498,6 +1498,282 @@ export function registerRoutes(app: Express): Server {
     } catch (error) {
       console.error("Get attendance error:", error);
       res.status(500).json({ message: "Failed to get attendance records" });
+    }
+  });
+
+  // Get employee time analytics for managers
+  app.get("/api/analytics/employees", requireManager, async (req, res) => {
+    try {
+      const employees = await storage.getAllUsers();
+      const employeeAnalytics = [];
+
+      for (const employee of employees.filter(u => u.role === 'employee')) {
+        // Get last 30 days of records
+        const records = await storage.getUserAttendanceRecords(employee.id, 50);
+        
+        // Calculate this week's hours
+        const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 }); // Monday
+        const weekEnd = endOfWeek(new Date(), { weekStartsOn: 1 });
+        
+        const thisWeekRecords = records.filter(record => {
+          const recordDate = new Date(record.date);
+          return recordDate >= weekStart && recordDate <= weekEnd && record.clockOutTime;
+        });
+
+        const thisWeekHours = thisWeekRecords.reduce((total, record) => {
+          if (record.clockOutTime) {
+            const minutes = differenceInMinutes(new Date(record.clockOutTime), new Date(record.clockInTime));
+            return total + (minutes / 60);
+          }
+          return total;
+        }, 0);
+
+        // Calculate this month's hours
+        const monthStart = startOfMonth(new Date());
+        const monthEnd = endOfMonth(new Date());
+        
+        const thisMonthRecords = records.filter(record => {
+          const recordDate = new Date(record.date);
+          return recordDate >= monthStart && recordDate <= monthEnd && record.clockOutTime;
+        });
+
+        const thisMonthHours = thisMonthRecords.reduce((total, record) => {
+          if (record.clockOutTime) {
+            const minutes = differenceInMinutes(new Date(record.clockOutTime), new Date(record.clockInTime));
+            return total + (minutes / 60);
+          }
+          return total;
+        }, 0);
+
+        // Calculate today's status
+        const today = format(new Date(), "yyyy-MM-dd");
+        const todayRecords = records.filter(record => record.date === today);
+        const isCurrentlyWorking = todayRecords.some(record => !record.clockOutTime);
+        
+        const todayHours = todayRecords.reduce((total, record) => {
+          if (record.clockOutTime) {
+            const minutes = differenceInMinutes(new Date(record.clockOutTime), new Date(record.clockInTime));
+            return total + (minutes / 60);
+          } else if (isCurrentlyWorking) {
+            // Add current session time
+            const minutes = differenceInMinutes(new Date(), new Date(record.clockInTime));
+            return total + (minutes / 60);
+          }
+          return total;
+        }, 0);
+
+        employeeAnalytics.push({
+          id: employee.id,
+          name: `${employee.firstName} ${employee.lastName}`,
+          email: employee.email,
+          thisWeekHours: Math.round(thisWeekHours * 100) / 100,
+          thisMonthHours: Math.round(thisMonthHours * 100) / 100,
+          todayHours: Math.round(todayHours * 100) / 100,
+          isCurrentlyWorking,
+          totalRecords: records.length,
+          lastClockIn: todayRecords.length > 0 ? todayRecords[todayRecords.length - 1].clockInTime : null
+        });
+      }
+
+      res.json(employeeAnalytics);
+    } catch (error) {
+      console.error("Employee analytics error:", error);
+      res.status(500).json({ message: "Failed to get employee analytics" });
+    }
+  });
+
+  // Get detailed employee time records for managers
+  app.get("/api/analytics/employee/:id", requireManager, async (req, res) => {
+    try {
+      const employeeId = parseInt(req.params.id);
+      const { period = 'week' } = req.query;
+      
+      // Get employee info
+      const employee = await storage.getUserById(employeeId);
+      if (!employee) {
+        return res.status(404).json({ message: "Employee not found" });
+      }
+
+      let startDate: Date;
+      let endDate: Date = new Date();
+
+      switch (period) {
+        case 'week':
+          startDate = startOfWeek(new Date(), { weekStartsOn: 1 });
+          endDate = endOfWeek(new Date(), { weekStartsOn: 1 });
+          break;
+        case 'month':
+          startDate = startOfMonth(new Date());
+          endDate = endOfMonth(new Date());
+          break;
+        case 'lastMonth':
+          startDate = startOfMonth(subMonths(new Date(), 1));
+          endDate = endOfMonth(subMonths(new Date(), 1));
+          break;
+        default:
+          startDate = startOfWeek(new Date(), { weekStartsOn: 1 });
+      }
+
+      const records = await storage.getUserAttendanceRecords(employeeId, 100);
+      
+      const filteredRecords = records.filter(record => {
+        const recordDate = new Date(record.date);
+        return recordDate >= startDate && recordDate <= endDate;
+      });
+
+      // Calculate daily breakdown
+      const dailyBreakdown = filteredRecords.map(record => {
+        let hoursWorked = 0;
+        let minutesWorked = 0;
+        let secondsWorked = 0;
+        
+        if (record.clockOutTime) {
+          const totalSeconds = differenceInSeconds(new Date(record.clockOutTime), new Date(record.clockInTime));
+          hoursWorked = Math.floor(totalSeconds / 3600);
+          minutesWorked = Math.floor((totalSeconds % 3600) / 60);
+          secondsWorked = totalSeconds % 60;
+        } else {
+          // Currently working
+          const totalSeconds = differenceInSeconds(new Date(), new Date(record.clockInTime));
+          hoursWorked = Math.floor(totalSeconds / 3600);
+          minutesWorked = Math.floor((totalSeconds % 3600) / 60);
+          secondsWorked = totalSeconds % 60;
+        }
+
+        return {
+          ...record,
+          hoursWorked,
+          minutesWorked,
+          secondsWorked,
+          totalHours: Math.round((hoursWorked + minutesWorked / 60 + secondsWorked / 3600) * 100) / 100,
+          isCurrentlyWorking: !record.clockOutTime
+        };
+      });
+
+      // Calculate totals
+      const totalHours = dailyBreakdown.reduce((sum, record) => sum + record.totalHours, 0);
+      const totalMinutes = Math.floor((totalHours % 1) * 60);
+      const totalWholeHours = Math.floor(totalHours);
+      const totalSeconds = Math.floor(((totalHours % 1) * 60 % 1) * 60);
+
+      res.json({
+        employee: {
+          id: employee.id,
+          name: `${employee.firstName} ${employee.lastName}`,
+          email: employee.email
+        },
+        period,
+        startDate: format(startDate, 'yyyy-MM-dd'),
+        endDate: format(endDate, 'yyyy-MM-dd'),
+        summary: {
+          totalHours: Math.round(totalHours * 100) / 100,
+          totalWholeHours,
+          totalMinutes,
+          totalSeconds,
+          totalDays: dailyBreakdown.length,
+          averageHoursPerDay: dailyBreakdown.length > 0 ? Math.round((totalHours / dailyBreakdown.length) * 100) / 100 : 0
+        },
+        dailyRecords: dailyBreakdown.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      });
+    } catch (error) {
+      console.error("Employee detail analytics error:", error);
+      res.status(500).json({ message: "Failed to get employee details" });
+    }
+  });
+
+  // Get personal analytics for employees
+  app.get("/api/analytics/personal", requireAuth, async (req, res) => {
+    try {
+      const { period = 'week' } = req.query;
+      
+      let startDate: Date;
+      let endDate: Date = new Date();
+
+      switch (period) {
+        case 'week':
+          startDate = startOfWeek(new Date(), { weekStartsOn: 1 });
+          endDate = endOfWeek(new Date(), { weekStartsOn: 1 });
+          break;
+        case 'month':
+          startDate = startOfMonth(new Date());
+          endDate = endOfMonth(new Date());
+          break;
+        case 'lastMonth':
+          startDate = startOfMonth(subMonths(new Date(), 1));
+          endDate = endOfMonth(subMonths(new Date(), 1));
+          break;
+        default:
+          startDate = startOfWeek(new Date(), { weekStartsOn: 1 });
+      }
+
+      const records = await storage.getUserAttendanceRecords(req.user!.id, 100);
+      
+      const filteredRecords = records.filter(record => {
+        const recordDate = new Date(record.date);
+        return recordDate >= startDate && recordDate <= endDate;
+      });
+
+      // Calculate daily breakdown with detailed time
+      const dailyBreakdown = filteredRecords.map(record => {
+        let hoursWorked = 0;
+        let minutesWorked = 0;
+        let secondsWorked = 0;
+        
+        if (record.clockOutTime) {
+          const totalSeconds = differenceInSeconds(new Date(record.clockOutTime), new Date(record.clockInTime));
+          hoursWorked = Math.floor(totalSeconds / 3600);
+          minutesWorked = Math.floor((totalSeconds % 3600) / 60);
+          secondsWorked = totalSeconds % 60;
+        } else {
+          // Currently working
+          const totalSeconds = differenceInSeconds(new Date(), new Date(record.clockInTime));
+          hoursWorked = Math.floor(totalSeconds / 3600);
+          minutesWorked = Math.floor((totalSeconds % 3600) / 60);
+          secondsWorked = totalSeconds % 60;
+        }
+
+        return {
+          ...record,
+          hoursWorked,
+          minutesWorked,
+          secondsWorked,
+          totalHours: Math.round((hoursWorked + minutesWorked / 60 + secondsWorked / 3600) * 100) / 100,
+          isCurrentlyWorking: !record.clockOutTime,
+          clockInFormatted: format(new Date(record.clockInTime), 'HH:mm:ss'),
+          clockOutFormatted: record.clockOutTime ? format(new Date(record.clockOutTime), 'HH:mm:ss') : null,
+          dateFormatted: format(new Date(record.date), 'MMM dd, yyyy')
+        };
+      });
+
+      // Calculate totals
+      const totalHours = dailyBreakdown.reduce((sum, record) => sum + record.totalHours, 0);
+      const totalMinutes = Math.floor((totalHours % 1) * 60);
+      const totalWholeHours = Math.floor(totalHours);
+      const totalSeconds = Math.floor(((totalHours % 1) * 60 % 1) * 60);
+
+      // Check if currently working
+      const today = format(new Date(), "yyyy-MM-dd");
+      const todayRecord = dailyBreakdown.find(record => record.date === today && !record.clockOutTime);
+
+      res.json({
+        period,
+        startDate: format(startDate, 'yyyy-MM-dd'),
+        endDate: format(endDate, 'yyyy-MM-dd'),
+        summary: {
+          totalHours: Math.round(totalHours * 100) / 100,
+          totalWholeHours,
+          totalMinutes,
+          totalSeconds,
+          totalDays: dailyBreakdown.length,
+          averageHoursPerDay: dailyBreakdown.length > 0 ? Math.round((totalHours / dailyBreakdown.length) * 100) / 100 : 0,
+          isCurrentlyWorking: !!todayRecord,
+          currentSessionStart: todayRecord?.clockInTime || null
+        },
+        dailyRecords: dailyBreakdown.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      });
+    } catch (error) {
+      console.error("Personal analytics error:", error);
+      res.status(500).json({ message: "Failed to get personal analytics" });
     }
   });
 

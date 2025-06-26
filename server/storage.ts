@@ -25,11 +25,13 @@ const MemoryStoreSession = MemoryStore(session);
 export interface IStorage {
   // User operations
   getUser(id: number): Promise<User | undefined>;
+  getUserById(id: number): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
   updateUserFaceImage(userId: number, faceImageUrl: string): Promise<User>;
   updateUserFaceEmbedding(userId: number, faceImageUrl: string, faceEmbedding: number[]): Promise<User>;
   getAllEmployees(): Promise<User[]>;
+  getAllUsers(): Promise<User[]>;
   deleteUser(id: number): Promise<void>;
   
   // Attendance operations
@@ -112,6 +114,18 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getAllEmployees(): Promise<User[]> {
+    return await db
+      .select()
+      .from(users)
+      .orderBy(desc(users.createdAt));
+  }
+
+  async getUserById(id: number): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user || undefined;
+  }
+
+  async getAllUsers(): Promise<User[]> {
     return await db
       .select()
       .from(users)
