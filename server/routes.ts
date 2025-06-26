@@ -841,16 +841,52 @@ export function registerRoutes(app: Express): Server {
         });
       }
 
-      // Generate face embedding and store both image and embedding
+      // Generate face embedding using simple face_recognition approach
       try {
         console.log(`Generating face embedding for employee ${employeeId}...`);
         
-        // Generate embedding using the new face comparison utility
-        const { storeFaceEmbedding } = await import('./lib/faceCompare');
-        const embedding = await generateProbeEmbedding(imageData);
+        // Use simple face recognition encoding (same as webcam comparison)
+        const { spawn } = await import('child_process');
+        const embedding = await new Promise<number[]>((resolve, reject) => {
+          const pythonProcess = spawn('python3', ['server/simple_face_recognition.py', 'encode'], {
+            stdio: ['pipe', 'pipe', 'pipe']
+          });
+          
+          let output = '';
+          let errorOutput = '';
+          
+          pythonProcess.stdout.on('data', (data) => {
+            output += data.toString();
+          });
+          
+          pythonProcess.stderr.on('data', (data) => {
+            errorOutput += data.toString();
+          });
+          
+          pythonProcess.on('close', (code) => {
+            if (code === 0) {
+              try {
+                const result = JSON.parse(output);
+                if (result.success && result.encoding) {
+                  resolve(result.encoding);
+                } else {
+                  reject(new Error(result.error || 'Encoding generation failed'));
+                }
+              } catch (parseError) {
+                reject(new Error(`Invalid response: ${output}`));
+              }
+            } else {
+              reject(new Error(`Face recognition failed: ${errorOutput}`));
+            }
+          });
+          
+          const inputData = JSON.stringify({ image_data: imageData });
+          pythonProcess.stdin.write(inputData);
+          pythonProcess.stdin.end();
+        });
         
-        // Store the normalized embedding
-        await storeFaceEmbedding(employeeId, embedding, imageData);
+        // Store the face embedding directly in database
+        await storage.updateUserFaceEmbedding(employeeId, imageData, embedding);
         
         // Get updated user
         const updatedUser = await storage.getUser(employeeId);
@@ -864,9 +900,9 @@ export function registerRoutes(app: Express): Server {
           user: safeUser,
           encoding_quality: {
             hasEncoding: true,
-            method: 'normalized_embedding',
+            method: 'simple_face_recognition',
             dimensions: embedding.length,
-            note: 'Face embedding generated and normalized for accurate verification'
+            note: 'Face encoding generated using simple OpenCV system'
           }
         });
         
@@ -1149,58 +1185,13 @@ export function registerRoutes(app: Express): Server {
         console.log(`Location verification passed for ${closestLocation.name} (${minDistance}m away)`);
       }
 
-      // Face verification using computer vision
-      console.log(`Starting face verification for ${req.user.email}`);
+      // Simple face verification using face_recognition approach
+      console.log(`Starting simple face verification for ${req.user.email}`);
       
       try {
         const capturedImage = imageData;
-        const registeredImage = req.user.faceImageUrl;
         
-        // Basic validation
-        const capturedBase64 = capturedImage.replace(/^data:image\/[a-z]+;base64,/, '');
-        if (capturedBase64.length < 1000) {
-          return res.status(400).json({
-            verified: false,
-            message: "Image appears to be too small or invalid"
-          });
-        }
-
-        // Validate that captured image contains an actual face with high confidence
-        const capturedFaceResult = await detectFaceInImage(capturedImage);
-        if (!capturedFaceResult.hasFace || capturedFaceResult.confidence < 60) {
-          console.log(`Face detection failed for ${req.user.email} - captured image:`, capturedFaceResult.details);
-          return res.status(400).json({
-            verified: false,
-            message: "Face detection quality too low. Please ensure your face is clearly visible, well-lit, and looking directly at the camera."
-          });
-        }
-        
-        // Verify that registered image also has a face with high confidence
-        const registeredFaceResult = await detectFaceInImage(registeredImage);
-        if (!registeredFaceResult.hasFace || registeredFaceResult.confidence < 60) {
-          console.log(`Face detection failed for ${req.user.email} - registered image:`, registeredFaceResult.details);
-          return res.status(400).json({
-            verified: false,
-            message: "Invalid registered face image quality. Please contact your manager to re-register your face with a clearer photo."
-          });
-        }
-        
-        console.log(`Face detection passed for ${req.user.email} - Captured: ${capturedFaceResult.confidence}%, Registered: ${registeredFaceResult.confidence}%`);
-        
-        // Extract real face embedding from captured image using Python service
-        let probeEmbedding: number[];
-        try {
-          probeEmbedding = await generateProbeEmbedding(capturedImage);
-          console.log(`Probe embedding generated successfully - ${probeEmbedding.length} dimensions`);
-        } catch (error) {
-          console.error(`Failed to generate probe embedding for ${req.user.email}:`, error);
-          return res.status(400).json({
-            verified: false,
-            message: "Failed to process face image. Please ensure good lighting and try again."
-          });
-        }
-        
-        // Use direct Python face_recognition library comparison (same as desktop system)
+        // Check if user has stored face encoding
         if (!req.user.faceEmbedding) {
           return res.status(400).json({
             verified: false,
@@ -1216,13 +1207,10 @@ export function registerRoutes(app: Express): Server {
           faceEmbedding = req.user.faceEmbedding as number[];
         }
         
-        // Add critical debugging to track the exact comparison
-        console.log(`=== FACE VERIFICATION DEBUG ===`);
-        console.log(`User: ${req.user.email} (ID: ${req.user.id})`);
-        console.log(`Stored face embedding dimensions: ${faceEmbedding.length}`);
-        console.log(`Comparing against stored face template for user: ${req.user.email}`);
-        console.log(`===============================`);
+        console.log(`Stored encoding dimensions: ${faceEmbedding.length}`);
+        console.log(`Comparing captured image against stored face encoding`);
         
+        // Simple face comparison using face_recognition approach
         const verificationResult = await compareFacesWithPython(faceEmbedding, capturedImage, 0.6);
         
         console.log(`=== COMPARISON RESULT ===`);
