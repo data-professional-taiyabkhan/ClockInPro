@@ -11,9 +11,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { Users, UserPlus, Clock, MapPin, Calendar, Upload, Building2, UserCheck, LogOut } from "lucide-react";
+import { Users, UserPlus, Clock, MapPin, Calendar, Upload, Building2, UserCheck, LogOut, BarChart3 } from "lucide-react";
 import type { User, AttendanceRecord, Location, EmployeeInvitation, EmployeeLocation } from "@shared/schema";
 import { format } from "date-fns";
+import { ManagerAnalyticsDashboard } from "@/components/manager-analytics-dashboard";
 
 export default function ManagerDashboard() {
   const { toast } = useToast();
@@ -179,11 +180,12 @@ export default function ManagerDashboard() {
 
         {/* Tabs */}
         <Tabs defaultValue="assignments" className="w-full">
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger value="assignments">Location Assignments</TabsTrigger>
             <TabsTrigger value="employees">Employees</TabsTrigger>
             <TabsTrigger value="locations">Locations</TabsTrigger>
             <TabsTrigger value="attendance">Attendance</TabsTrigger>
+            <TabsTrigger value="analytics">Analytics</TabsTrigger>
             <TabsTrigger value="invitations">Invitations</TabsTrigger>
           </TabsList>
 
@@ -633,6 +635,24 @@ export default function ManagerDashboard() {
                     </TableBody>
                   </Table>
                 )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Analytics Tab */}
+          <TabsContent value="analytics">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <BarChart3 className="w-5 h-5" />
+                  Employee Analytics
+                </CardTitle>
+                <CardDescription>
+                  Detailed work hour analytics and employee performance tracking
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ManagerAnalyticsDashboard />
               </CardContent>
             </Card>
           </TabsContent>
