@@ -146,9 +146,13 @@ export default function ManagerDashboard() {
       email: string;
       role: string;
     }) => {
-      return await apiRequest("/api/invitations", {
+      // The invitation endpoint only needs email and role
+      return await apiRequest("/api/create-invitation", {
         method: "POST",
-        body: JSON.stringify(employeeData),
+        body: JSON.stringify({
+          email: employeeData.email,
+          role: employeeData.role
+        }),
       });
     },
     onSuccess: () => {
