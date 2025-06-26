@@ -146,17 +146,12 @@ export default function ManagerDashboard() {
       email: string;
       role: string;
     }) => {
-      // The invitation endpoint only needs email and role
-      return await apiRequest("/api/create-invitation", {
+      return await apiRequest("/api/employees", {
         method: "POST",
-        body: JSON.stringify({
-          email: employeeData.email,
-          role: employeeData.role
-        }),
+        body: JSON.stringify(employeeData),
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/invitations"] });
       queryClient.invalidateQueries({ queryKey: ["/api/employees"] });
       setIsAddEmployeeOpen(false);
       setNewEmployee({
@@ -167,7 +162,7 @@ export default function ManagerDashboard() {
       });
       toast({
         title: "Success",
-        description: "Employee invitation sent successfully",
+        description: "Employee created successfully",
       });
     },
     onError: (error: Error) => {
@@ -405,7 +400,7 @@ export default function ManagerDashboard() {
                       <DialogHeader>
                         <DialogTitle>Add New Employee</DialogTitle>
                         <DialogDescription>
-                          Create a new employee account. An invitation will be sent to their email.
+                          Create a new employee account directly. Default password will be "password123".
                         </DialogDescription>
                       </DialogHeader>
                       <div className="space-y-4">

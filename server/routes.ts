@@ -1916,6 +1916,57 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  app.post("/api/employees", requireAuth, async (req, res) => {
+    try {
+      // Check if user is manager or admin
+      if (req.user!.role !== 'manager' && req.user!.role !== 'admin') {
+        return res.status(403).json({ message: "Manager access required" });
+      }
+
+      const { firstName, lastName, email, role } = req.body;
+
+      // Validate required fields
+      if (!firstName || !lastName || !email) {
+        return res.status(400).json({ message: "First name, last name, and email are required" });
+      }
+
+      // Check if user already exists
+      const existingUser = await storage.getUserByEmail(email);
+      if (existingUser) {
+        return res.status(400).json({ message: "User with this email already exists" });
+      }
+
+      // Create default password (can be changed later)
+      const defaultPassword = "password123";
+      const hashedPassword = await hashPassword(defaultPassword);
+
+      // Create the employee directly
+      const newUser = await storage.createUser({
+        firstName,
+        lastName,
+        email,
+        password: hashedPassword,
+        role: role || "employee",
+        isActive: true,
+        faceImageUrl: null,
+        faceEmbedding: null
+      });
+
+      // Remove password from response
+      const { password: _, ...safeUser } = newUser;
+      
+      res.json({
+        message: "Employee created successfully",
+        user: safeUser,
+        defaultPassword: defaultPassword,
+        note: "Employee can change password after first login"
+      });
+    } catch (error) {
+      console.error("Create employee error:", error);
+      res.status(500).json({ message: "Failed to create employee" });
+    }
+  });
+
   // Employee invitation system
   app.post("/api/create-invitation", requireAuth, async (req, res) => {
     try {
