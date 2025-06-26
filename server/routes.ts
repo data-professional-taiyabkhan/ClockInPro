@@ -597,26 +597,55 @@ function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: numbe
   return R * c; // Distance in meters
 }
 
-// Generate probe embedding from captured image
-// In production, this should be replaced with face-api.js descriptors from frontend
+// Generate face embedding from image using the Python face recognition service
 async function generateProbeEmbedding(imageData: string): Promise<number[]> {
-  // Placeholder: Generate a pseudo-random but consistent embedding based on image hash
-  // This will be replaced by actual face-api.js descriptors from the frontend
-  const imageHash = imageData.slice(-100); // Use last 100 chars as seed
-  const embedding = new Array(128);
-  
-  let seed = 0;
-  for (let i = 0; i < imageHash.length; i++) {
-    seed += imageHash.charCodeAt(i);
+  try {
+    const { spawn } = await import('child_process');
+    
+    return new Promise((resolve, reject) => {
+      // Use Python face recognition service to generate proper face encoding
+      const pythonProcess = spawn('python3', ['server/face_recognition_service.py', 'encode'], {
+        stdio: ['pipe', 'pipe', 'pipe']
+      });
+      
+      let output = '';
+      let errorOutput = '';
+      
+      pythonProcess.stdout.on('data', (data) => {
+        output += data.toString();
+      });
+      
+      pythonProcess.stderr.on('data', (data) => {
+        errorOutput += data.toString();
+      });
+      
+      pythonProcess.on('close', (code) => {
+        if (code === 0) {
+          try {
+            const result = JSON.parse(output);
+            if (result.success && result.encoding) {
+              console.log(`Face encoding generated successfully - ${result.encoding.length} dimensions`);
+              resolve(result.encoding);
+            } else {
+              reject(new Error(result.error || 'Failed to generate face encoding'));
+            }
+          } catch (parseError) {
+            reject(new Error(`Invalid response from face recognition service: ${output}`));
+          }
+        } else {
+          reject(new Error(`Face recognition service failed: ${errorOutput}`));
+        }
+      });
+      
+      // Send image data as JSON to Python process
+      const inputData = JSON.stringify({ image_data: imageData });
+      pythonProcess.stdin.write(inputData);
+      pythonProcess.stdin.end();
+    });
+  } catch (error) {
+    console.error('Face encoding generation error:', error);
+    throw new Error('Failed to generate face encoding from image');
   }
-  
-  // Generate deterministic "embedding" for testing
-  for (let i = 0; i < 128; i++) {
-    seed = (seed * 1103515245 + 12345) & 0x7fffffff;
-    embedding[i] = (seed / 0x7fffffff - 0.5) * 2; // Range [-1, 1]
-  }
-  
-  return embedding;
 }
 
 export function registerRoutes(app: Express): Server {

@@ -19,15 +19,24 @@ def process_image_to_rgb(image_data):
         if image_data.startswith('data:image'):
             image_data = image_data.split(',')[1]
         
+        # Clean up base64 string
+        image_data = image_data.strip().replace('\n', '').replace('\r', '')
+        
+        # Add padding if needed
+        missing_padding = len(image_data) % 4
+        if missing_padding:
+            image_data += '=' * (4 - missing_padding)
+        
         # Decode base64
         image_bytes = base64.b64decode(image_data)
         
         # Open with PIL and convert to RGB
         pil_image = Image.open(io.BytesIO(image_bytes))
-        rgb_image = pil_image.convert('RGB')
+        if pil_image.mode != 'RGB':
+            pil_image = pil_image.convert('RGB')
         
         # Convert to numpy array
-        return np.array(rgb_image)
+        return np.array(pil_image)
     except Exception as e:
         raise ValueError(f"Failed to process image: {str(e)}")
 
