@@ -983,7 +983,8 @@ export function registerRoutes(app: Express): Server {
           console.log(`No face embedding found for ${req.user.email} - user needs to re-register`);
           return res.status(400).json({
             verified: false,
-            message: "Face recognition unavailable. Please contact your manager to re-register your face with the new system."
+            message: "Face recognition system updated. Please use the 'Update Face Image' button in your dashboard to re-register your face.",
+            requiresReRegistration: true
           });
         }
         
