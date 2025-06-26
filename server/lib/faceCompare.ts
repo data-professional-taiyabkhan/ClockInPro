@@ -64,7 +64,7 @@ export async function extractFaceEmbedding(imageData: string): Promise<number[]>
 export async function verifyFace(
   userId: number, 
   probeEmbedding: number[], 
-  threshold: number = 0.25
+  threshold: number = 0.6
 ): Promise<{ verified: boolean; distance: number; threshold: number; userEmail?: string; securityLevel?: string; reason?: string }> {
   
   // Load user's stored embedding from database

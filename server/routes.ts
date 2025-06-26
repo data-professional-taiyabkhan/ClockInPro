@@ -598,6 +598,82 @@ function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: numbe
 }
 
 // Generate face embedding from image using the Python face recognition service
+async function compareFacesWithPython(
+  knownEncoding: number[] | string, 
+  unknownImageData: string, 
+  tolerance: number = 0.6
+): Promise<{ verified: boolean; distance: number; threshold: number; userEmail?: string }> {
+  try {
+    const { spawn } = await import('child_process');
+    
+    return new Promise((resolve, reject) => {
+      // Use Python face recognition service for direct comparison
+      const pythonProcess = spawn('python3', ['server/face_recognition_service.py', 'compare'], {
+        stdio: ['pipe', 'pipe', 'pipe']
+      });
+      
+      let output = '';
+      let errorOutput = '';
+      
+      pythonProcess.stdout.on('data', (data) => {
+        output += data.toString();
+      });
+      
+      pythonProcess.stderr.on('data', (data) => {
+        errorOutput += data.toString();
+      });
+      
+      pythonProcess.on('close', (code) => {
+        if (code === 0) {
+          try {
+            const result = JSON.parse(output);
+            if (result.success && result.result) {
+              const { distance, is_match } = result.result;
+              console.log(`=== PYTHON FACE_RECOGNITION COMPARISON ===`);
+              console.log(`Distance: ${distance.toFixed(4)}`);
+              console.log(`Threshold: ${tolerance}`);
+              console.log(`Match: ${is_match ? 'YES' : 'NO'}`);
+              console.log(`========================================`);
+              
+              resolve({
+                verified: is_match,
+                distance: distance,
+                threshold: tolerance
+              });
+            } else {
+              reject(new Error(result.error || 'Face comparison failed'));
+            }
+          } catch (parseError) {
+            reject(new Error(`Invalid response from face recognition service: ${output}`));
+          }
+        } else {
+          reject(new Error(`Face recognition service failed: ${errorOutput}`));
+        }
+      });
+      
+      // Parse known encoding if it's a string
+      let parsedEncoding: number[];
+      if (typeof knownEncoding === 'string') {
+        parsedEncoding = JSON.parse(knownEncoding);
+      } else {
+        parsedEncoding = knownEncoding;
+      }
+      
+      // Send comparison data to Python process
+      const inputData = JSON.stringify({
+        known_encoding: parsedEncoding,
+        unknown_image: unknownImageData,
+        tolerance: tolerance
+      });
+      pythonProcess.stdin.write(inputData);
+      pythonProcess.stdin.end();
+    });
+  } catch (error) {
+    console.error('Python face comparison error:', error);
+    throw new Error('Failed to compare faces using face_recognition library');
+  }
+}
+
 async function generateProbeEmbedding(imageData: string): Promise<number[]> {
   try {
     const { spawn } = await import('child_process');
@@ -1047,9 +1123,8 @@ export function registerRoutes(app: Express): Server {
           });
         }
         
-        // Use strict face comparison with 0.25 threshold
-        const { verifyFace } = await import('./lib/faceCompare');
-        const verificationResult = await verifyFace(req.user.id, probeEmbedding, 0.25);
+        // Use direct Python face_recognition library comparison (same as desktop system)
+        const verificationResult = await compareFacesWithPython(req.user.faceEmbedding!, capturedImage, 0.6);
         
         if (verificationResult.verified) {
           console.log(`Face verification successful for ${req.user.email} - Distance: ${verificationResult.distance}, Threshold: ${verificationResult.threshold}`);
