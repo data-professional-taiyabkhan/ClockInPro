@@ -208,7 +208,6 @@ The application is optimized for Replit deployment with:
 
 For support and questions:
 - Create an issue on GitHub
-- Check the documentation in the `/docs` folder
 - Review the troubleshooting guide
 
 ## Changelog
