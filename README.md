@@ -108,7 +108,7 @@ The application will be available at `http://localhost:5000`
 3. **Employee Invitations**: Send invitation links to employees for account creation
 
 ### Employee Onboarding
-1. **Account Creation**: Employees use invitation links to create accounts
+1. **Direct Account Creation**: Managers create employee accounts directly with default password "password123"
 2. **Face Registration**: Managers upload employee face images for recognition
 3. **Location Assignment**: Assign employees to specific office locations
 
@@ -133,6 +133,7 @@ The application will be available at `http://localhost:5000`
 
 ### Management
 - `GET /api/employees` - List employees (Manager+)
+- `POST /api/employees` - Create employee accounts directly (Manager+)
 - `POST /api/employees/{id}/face` - Upload employee face image (Manager+)
 - `GET /api/locations` - List office locations
 - `POST /api/locations` - Create office location (Admin)
